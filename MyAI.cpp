@@ -247,19 +247,22 @@ void MyAI::generateMove(char move[6]) {
     std::pair<double, int> ret =
         nega_Max(this->main_chessboard, 0, this->Color);
     UCT_nodes[0].total_score += ret.first;
-    UCT_nodes[1].total_simulation_times += ret.second;
+    UCT_nodes[0].total_simulation_times += ret.second;
   }
 
   double s;
   int id = 0;
+  double mn = 1e7;
   while (UCT_nodes[0].pq.size()) {
     s = UCT_nodes[0].pq.top().first;
     id = UCT_nodes[0].pq.top().second;
+    if(UCT_nodes[id].UCT_score < mn) mn = UCT_nodes[id].UCT_score;
     if (abs(s - UCT_nodes[id].UCT_score) > eps)
       UCT_nodes[0].pq.pop();
     else
       break;
   }
+  fprintf(stderr, "mn = %lf\n", mn);
   int mv = UCT_nodes[id].last_move;
 
   // log
