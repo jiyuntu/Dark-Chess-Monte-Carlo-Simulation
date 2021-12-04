@@ -36,6 +36,7 @@ struct UCTNode {
   std::priority_queue<std::pair<double, int> > pq;
   int last_move, total_simulation_times;
   double total_score;
+  double UCT_score;
 };
 
 extern UCTNode UCT_nodes[MAX_NODE];
@@ -79,6 +80,7 @@ class MyAI {
   int Red_Time, Black_Time;
   ChessBoard main_chessboard;
   const double eps = 1e-6;
+  double exploration = 1;
 
 #ifdef WINDOWS
   clock_t begin;

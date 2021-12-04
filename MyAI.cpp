@@ -227,6 +227,7 @@ void MyAI::assignUCTNode(int id, int last_move) {
   while (UCT_nodes[id].pq.size()) UCT_nodes[id].pq.pop();
   UCT_nodes[id].last_move = last_move;
   UCT_nodes[id].total_score = 0.;
+  UCT_nodes[id].UCT_score = 0.;
   UCT_nodes[id].total_simulation_times = 0;
 }
 
@@ -243,7 +244,9 @@ void MyAI::generateMove(char move[6]) {
   UCT_nodes_size = 0;
   assignUCTNode(UCT_nodes_size++, 0);
   while (!isTimeUp()) {
-    nega_Max(this->main_chessboard, 0, 0);
+    std::pair<double, int> ret = nega_Max(this->main_chessboard, 0, 0);
+    UCT_nodes[0].total_score -= ret.first;
+    UCT_nodes[1].total_simulation_times += ret.second;
   }
 
   double s;
@@ -251,8 +254,7 @@ void MyAI::generateMove(char move[6]) {
   while (UCT_nodes[0].pq.size()) {
     s = UCT_nodes[0].pq.top().first;
     id = UCT_nodes[0].pq.top().second;
-    if (abs(s - UCT_nodes[id].total_score /
-                    UCT_nodes[id].total_simulation_times) > eps)
+    if (abs(s - UCT_nodes[id].UCT_score) > eps)
       UCT_nodes[0].pq.pop();
     else
       break;
@@ -266,8 +268,7 @@ void MyAI::generateMove(char move[6]) {
   sprintf(move, "%c%c-%c%c", 'a' + (tmp_start % 4), '1' + (7 - tmp_start / 4),
           'a' + (tmp_end % 4), '1' + (7 - tmp_end / 4));
   fprintf(stderr, "Move: %s, Score: %+5lf, Sim_Count: %7d\n", move,
-          UCT_nodes[id].total_score / UCT_nodes[id].total_simulation_times,
-          UCT_nodes[id].total_simulation_times);
+          UCT_nodes[id].UCT_score, UCT_nodes[id].total_simulation_times);
   fflush(stderr);
 
   // set return value
@@ -276,8 +277,7 @@ void MyAI::generateMove(char move[6]) {
   Pirnf_Chess(main_chessboard.Board[tmp_start], chess_Start);
   Pirnf_Chess(main_chessboard.Board[tmp_end], chess_End);
   printf("My result: \n--------------------------\n");
-  printf("MCS_pure: %lf (simulation count: %d)\n",
-         UCT_nodes[id].total_score / UCT_nodes[id].total_simulation_times,
+  printf("MCS_pure: %lf (simulation count: %d)\n", UCT_nodes[id].UCT_score,
          UCT_nodes[id].total_simulation_times);
   printf("(%d) -> (%d)\n", tmp_start, tmp_end);
   printf("<%s> -> <%s>\n", chess_Start, chess_End);
@@ -555,15 +555,21 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
     MakeMove(&chessboard, next_node.last_move, 0);
     std::pair<double, int> ret = nega_Max(chessboard, x, depth + 1);
 
-    UCT_nodes[node_id].pq.push(std::make_pair(
-        UCT_nodes[x].total_score / UCT_nodes[x].total_simulation_times, x));
     score -= ret.first;
     simulation_times += ret.second;
+    UCT_nodes[x].total_score += ret.first;
+    UCT_nodes[x].total_simulation_times += ret.second;
+    UCT_nodes[x].UCT_score =
+        UCT_nodes[x].total_score / UCT_nodes[x].total_simulation_times +
+        exploration * sqrt(log(UCT_nodes[node_id].total_simulation_times +
+                               simulation_times) /
+                           UCT_nodes[x].total_simulation_times);
+    UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[x].UCT_score, x));
   } else {  // leaf node
     int Moves[2048];
     int move_count = Expand(chessboard.Board, depth ^ 1, Moves);
 
-    for (int i = 0; i < move_count && !isTimeUp(); ++i) {
+    for (int i = 0; i < move_count; ++i) {
       int child_id = UCT_nodes_size;
       assignUCTNode(UCT_nodes_size++, Moves[i]);
       ChessBoard child_board = chessboard;
@@ -577,16 +583,20 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
 
       UCT_nodes[child_id].total_simulation_times += SIMULATE_COUNT_PER_CHILD;
       simulation_times += SIMULATE_COUNT_PER_CHILD;
+    }
 
-      UCT_nodes[node_id].pq.push(
-          std::make_pair(UCT_nodes[child_id].total_score /
-                             UCT_nodes[child_id].total_simulation_times,
-                         child_id));
+    for (int i = 0; i < move_count; i++) {
+      int child_id = UCT_nodes_size - move_count + i;
+      UCT_nodes[child_id].UCT_score =
+          UCT_nodes[child_id].total_score /
+              UCT_nodes[child_id].total_simulation_times +
+          exploration * sqrt(log(UCT_nodes[node_id].total_simulation_times +
+                                 simulation_times) /
+                             UCT_nodes[child_id].total_simulation_times);
+      UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[child_id].UCT_score, child_id));
     }
   }
 
-  UCT_nodes[node_id].total_score += score;
-  UCT_nodes[node_id].total_simulation_times += simulation_times;
   return std::make_pair(score, simulation_times);
 }
 
