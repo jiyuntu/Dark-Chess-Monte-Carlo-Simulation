@@ -224,7 +224,7 @@ void MyAI::initBoardState() {
 }
 
 void MyAI::assignUCTNode(int id, int last_move) {
-  while (UCT_nodes[id].pq.size()) UCT_nodes[id].pq.pop();
+  while (!UCT_nodes[id].pq.empty()) UCT_nodes[id].pq.pop();
   UCT_nodes[id].last_move = last_move;
   UCT_nodes[id].total_score = 0.;
   UCT_nodes[id].UCT_score = 0.;
@@ -252,17 +252,14 @@ void MyAI::generateMove(char move[6]) {
 
   double s;
   int id = 0;
-  double mn = 1e7;
-  while (UCT_nodes[0].pq.size()) {
+  while (!UCT_nodes[0].pq.empty()) {
     s = UCT_nodes[0].pq.top().first;
     id = UCT_nodes[0].pq.top().second;
-    if(UCT_nodes[id].UCT_score < mn) mn = UCT_nodes[id].UCT_score;
     if (abs(s - UCT_nodes[id].UCT_score) > eps)
       UCT_nodes[0].pq.pop();
     else
       break;
   }
-  fprintf(stderr, "mn = %lf\n", mn);
   int mv = UCT_nodes[id].last_move;
 
   // log
@@ -536,6 +533,13 @@ double MyAI::Evaluate(const ChessBoard* chessboard, const int legal_move_count,
   return score;
 }
 
+double MyAI::calculate_uct(double score, int tot, int parent_tot) {
+  if (tot == 0)
+    return 0.;
+  else
+    return score / tot + exploration * sqrt(log(parent_tot) / tot);
+}
+
 std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
                                       int color) {
   // return <total score, total simulation time>
@@ -546,7 +550,7 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
   if (UCT_nodes[node_id].pq.size() != 0) {  // not leaf node
     int x;
     double s;
-    while (1) {
+    while (!UCT_nodes[node_id].pq.empty()) {
       s = UCT_nodes[node_id].pq.top().first;
       x = UCT_nodes[node_id].pq.top().second;
       if (abs(UCT_nodes[x].UCT_score - s) > eps) {
@@ -562,11 +566,9 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
     simulation_times += ret.second;
     UCT_nodes[x].total_score += ret.first;
     UCT_nodes[x].total_simulation_times += ret.second;
-    UCT_nodes[x].UCT_score =
-        UCT_nodes[x].total_score / UCT_nodes[x].total_simulation_times +
-        exploration * sqrt(log(UCT_nodes[node_id].total_simulation_times +
-                               simulation_times) /
-                           UCT_nodes[x].total_simulation_times);
+    UCT_nodes[x].UCT_score = calculate_uct(
+        UCT_nodes[x].total_score, UCT_nodes[x].total_simulation_times,
+        UCT_nodes[node_id].total_simulation_times + simulation_times);
     UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[x].UCT_score, x));
   } else {  // leaf node
     int Moves[2048];
@@ -590,12 +592,10 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
 
     for (int i = 0; i < move_count; i++) {
       int child_id = UCT_nodes_size - move_count + i;
-      UCT_nodes[child_id].UCT_score =
-          UCT_nodes[child_id].total_score /
-              UCT_nodes[child_id].total_simulation_times +
-          exploration * sqrt(log(UCT_nodes[node_id].total_simulation_times +
-                                 simulation_times) /
-                             UCT_nodes[child_id].total_simulation_times);
+      UCT_nodes[child_id].UCT_score = calculate_uct(
+          UCT_nodes[child_id].total_score,
+          UCT_nodes[child_id].total_simulation_times,
+          UCT_nodes[node_id].total_simulation_times + simulation_times);
       UCT_nodes[node_id].pq.push(
           std::make_pair(UCT_nodes[child_id].UCT_score, child_id));
     }
@@ -615,7 +615,8 @@ double MyAI::Simulate(ChessBoard chessboard, int color) {
 
     // Check if is finish
     if (isFinish(&chessboard, moveNum)) {
-      return Evaluate(&chessboard, moveNum, turn_color) * (color == this->Color ? 1 : -1);
+      return Evaluate(&chessboard, moveNum, turn_color) *
+             (color == this->Color ? 1 : -1);
     }
 
     // distinguish eat-move and pure-move
