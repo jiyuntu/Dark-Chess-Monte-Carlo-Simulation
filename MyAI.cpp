@@ -246,7 +246,7 @@ void MyAI::generateMove(char move[6]) {
   while (!isTimeUp()) {
     std::pair<double, int> ret =
         nega_Max(this->main_chessboard, 0, this->Color);
-    UCT_nodes[0].total_score -= ret.first;
+    UCT_nodes[0].total_score += ret.first;
     UCT_nodes[1].total_simulation_times += ret.second;
   }
 
@@ -576,7 +576,7 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
       MakeMove(&child_board, Moves[i], 0);
 
       for (int k = 0; k < SIMULATE_COUNT_PER_CHILD; ++k) {
-        double s = Simulate(child_board);
+        double s = Simulate(child_board, color ^ 1);
         UCT_nodes[child_id].total_score += s;
         score += -s;
       }
@@ -601,10 +601,10 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
   return std::make_pair(score, simulation_times);
 }
 
-double MyAI::Simulate(ChessBoard chessboard) {
+double MyAI::Simulate(ChessBoard chessboard, int color) {
   int Moves[128];
   int moveNum;
-  int turn_color = this->Color ^ 1;
+  int turn_color = color;
 
   while (true) {
     // Expand

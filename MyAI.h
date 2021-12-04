@@ -106,7 +106,7 @@ class MyAI {
   int Expand(const int* board, const int color, int* Result);
   double Evaluate(const ChessBoard* chessboard, const int legal_move_count,
                   const int color);
-  double Simulate(ChessBoard chessboard);
+  double Simulate(ChessBoard chessboard, int color);
   bool isDraw(const ChessBoard* chessboard);
   bool isFinish(const ChessBoard* chessboard, int move_count);
   void assignUCTNode(int id, int last_move);
