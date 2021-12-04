@@ -223,94 +223,63 @@ void MyAI::initBoardState() {
   Pirnf_Chessboard();
 }
 
+void MyAI::assignUCTNode(int id, int last_move) {
+  while (UCT_nodes[id].pq.size()) UCT_nodes[id].pq.pop();
+  UCT_nodes[id].last_move = last_move;
+  UCT_nodes[id].total_score = 0.;
+  UCT_nodes[id].total_simulation_times = 0;
+}
+
 void MyAI::generateMove(char move[6]) {
 #ifdef WINDOWS
   begin = clock();
 #else
   gettimeofday(&begin, 0);
 #endif
-  // Expand
-  int Moves[2048];
-  int move_count = Expand(main_chessboard.Board, this->Color, Moves);
 
-  // Create children
-  ChessBoard* Children = new ChessBoard[move_count];
-  double* Children_Scores = new double[move_count];
-  for (int i = 0; i < move_count; ++i) {
-    Children[i] = main_chessboard;
-    MakeMove(&Children[i], Moves[i], 0);  // 0: dummy
-    Children_Scores[i] = 0;               // reset
-  }
-
-  // MCS_pure
-  int total_simulate_count = 0;
+  this->UCT_nodes_size = 0;
+  assignUCTNode(UCT_nodes_size++, 0);
   while (!isTimeUp()) {
-    // simulate every child <SIMULATE_COUNT_PER_CHILD> times
-    for (int i = 0; i < move_count; ++i) {
-      double total_score = 0;
-      for (int k = 0; k < SIMULATE_COUNT_PER_CHILD; ++k) {
-        total_score += Simulate(Children[i]);
-      }
-      Children_Scores[i] += total_score;
-    }
-    total_simulate_count += SIMULATE_COUNT_PER_CHILD;
+    nega_Max(this->main_chessboard, 0, 0);
   }
 
-  // Find best value
-  // you can use better approach
-  for (int i = 0; i < move_count; ++i) {
-    for (int j = i + 1; j < move_count; ++j) {
-      if (Children_Scores[i] < Children_Scores[j]) {
-        // swap
-        double tmp_score = Children_Scores[i];
-        Children_Scores[i] = Children_Scores[j];
-        Children_Scores[j] = tmp_score;
-        int tmp_move = Moves[i];
-        Moves[i] = Moves[j];
-        Moves[j] = tmp_move;
-        ChessBoard tmp_board = Children[i];
-        Children[i] = Children[j];
-        Children[j] = tmp_board;
-      }
-    }
+  double s;
+  int id = 0;
+  while (UCT_nodes[0].pq.size()) {
+    s = UCT_nodes[0].pq.top().first;
+    id = UCT_nodes[0].pq.top().second;
+    if (abs(s - UCT_nodes[id].total_score) > eps)
+      UCT_nodes[0].pq.pop();
+    else
+      break;
   }
+  int mv = UCT_nodes[id].last_move;
 
-  // Log
-  for (int i = 0; i < move_count; ++i) {
-    char tmp[6];
-    int tmp_start = Moves[i] / 100;
-    int tmp_end = Moves[i] % 100;
-    // change int to char
-    sprintf(tmp, "%c%c-%c%c", 'a' + (tmp_start % 4), '1' + (7 - tmp_start / 4),
-            'a' + (tmp_end % 4), '1' + (7 - tmp_end / 4));
-
-    fprintf(stderr, "%2d. Move: %s, Score: %+5lf, Sim_Count: %7d\n", i + 1, tmp,
-            Children_Scores[i] / total_simulate_count, total_simulate_count);
-    fflush(stderr);
-  }
+  // log
+  int tmp_start = mv / 100;
+  int tmp_end = mv % 100;
+  // change int to char
+  sprintf(move, "%c%c-%c%c", 'a' + (tmp_start % 4), '1' + (7 - tmp_start / 4),
+          'a' + (tmp_end % 4), '1' + (7 - tmp_end / 4));
+  fprintf(stderr, "Move: %s, Score: %+5lf, Sim_Count: %7d\n", move,
+          UCT_nodes[id].total_score / UCT_nodes[id].total_simulation_times,
+          UCT_nodes[id].total_simulation_times);
+  fflush(stderr);
 
   // set return value
-  int StartPoint = Moves[0] / 100;
-  int EndPoint = Moves[0] % 100;
-  sprintf(move, "%c%c-%c%c", 'a' + (StartPoint % 4), '1' + (7 - StartPoint / 4),
-          'a' + (EndPoint % 4), '1' + (7 - EndPoint / 4));
-
   char chess_Start[4] = "";
   char chess_End[4] = "";
-  Pirnf_Chess(main_chessboard.Board[StartPoint], chess_Start);
-  Pirnf_Chess(main_chessboard.Board[EndPoint], chess_End);
+  Pirnf_Chess(main_chessboard.Board[tmp_start], chess_Start);
+  Pirnf_Chess(main_chessboard.Board[tmp_end], chess_End);
   printf("My result: \n--------------------------\n");
   printf("MCS_pure: %lf (simulation count: %d)\n",
-         Children_Scores[0] / total_simulate_count, total_simulate_count);
-  printf("(%d) -> (%d)\n", StartPoint, EndPoint);
+         UCT_nodes[id].total_score / UCT_nodes[id].total_simulation_times,
+         UCT_nodes[id].total_simulation_times);
+  printf("(%d) -> (%d)\n", tmp_start, tmp_end);
   printf("<%s> -> <%s>\n", chess_Start, chess_End);
   printf("move:%s\n", move);
   printf("--------------------------\n");
   this->Pirnf_Chessboard();
-
-  // free
-  delete[] Children;
-  delete[] Children_Scores;
 }
 
 void MyAI::MakeMove(ChessBoard* chessboard, const int move, const int chess) {
@@ -557,6 +526,64 @@ double MyAI::Evaluate(const ChessBoard* chessboard, const int legal_move_count,
   score += piece_value;
 
   return score;
+}
+
+std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
+                                      int depth) {
+  // return <total score, total simulation time>
+  if (isFinish(&chessboard, 100) || isTimeUp())
+    return std::make_pair(0, 0);  // 100: dummy
+  double score = 0.;
+  int simulation_times = 0;
+  if (UCT_nodes[node_id].pq.size() != 0) {  // not leaf node
+    int x;
+    double s;
+    while (1) {
+      s = UCT_nodes[node_id].pq.top().first;
+      x = UCT_nodes[node_id].pq.top().second;
+      if (abs(UCT_nodes[x].total_score - s) > eps) {
+        UCT_nodes[node_id].pq.pop();
+      } else
+        break;
+    }
+    UCTNode next_node = UCT_nodes[x];
+    MakeMove(&chessboard, next_node.last_move, 0);
+    std::pair<double, int> ret = nega_Max(chessboard, x, depth + 1);
+
+    UCT_nodes[node_id].pq.push(std::make_pair(
+        UCT_nodes[x].total_score / UCT_nodes[x].total_simulation_times, x));
+    score -= ret.first;
+    simulation_times += ret.second;
+  } else {  // leaf node
+    int Moves[2048];
+    int move_count = Expand(chessboard.Board, depth ^ 1, Moves);
+
+    for (int i = 0; i < move_count && !isTimeUp(); ++i) {
+      int child_id = UCT_nodes_size;
+      assignUCTNode(UCT_nodes_size++, Moves[i]);
+      ChessBoard child_board = chessboard;
+      MakeMove(&child_board, Moves[i], 0);
+
+      for (int k = 0; k < SIMULATE_COUNT_PER_CHILD; ++k) {
+        double s = Simulate(child_board);
+        UCT_nodes[child_id].total_score += s;
+        score += -s;
+      }
+
+      UCT_nodes[child_id].total_simulation_times +=
+          SIMULATE_COUNT_PER_CHILD;
+      simulation_times += SIMULATE_COUNT_PER_CHILD;
+
+      UCT_nodes[node_id].pq.push(std::make_pair(
+          UCT_nodes[child_id].total_score /
+              UCT_nodes[child_id].total_simulation_times,
+          child_id));
+    }
+  }
+
+  UCT_nodes[node_id].total_score += score;
+  UCT_nodes[node_id].total_simulation_times += simulation_times;
+  return std::make_pair(score, simulation_times);
 }
 
 double MyAI::Simulate(ChessBoard chessboard) {
