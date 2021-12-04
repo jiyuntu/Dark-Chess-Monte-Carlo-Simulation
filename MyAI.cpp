@@ -612,7 +612,7 @@ double MyAI::Simulate(ChessBoard chessboard, int color) {
 
     // Check if is finish
     if (isFinish(&chessboard, moveNum)) {
-      return Evaluate(&chessboard, moveNum, turn_color);
+      return Evaluate(&chessboard, moveNum, turn_color) * (color == this->Color ? 1 : -1);
     }
 
     // distinguish eat-move and pure-move
