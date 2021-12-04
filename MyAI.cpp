@@ -248,7 +248,8 @@ void MyAI::generateMove(char move[6]) {
   while (UCT_nodes[0].pq.size()) {
     s = UCT_nodes[0].pq.top().first;
     id = UCT_nodes[0].pq.top().second;
-    if (abs(s - UCT_nodes[id].total_score) > eps)
+    if (abs(s - UCT_nodes[id].total_score /
+                    UCT_nodes[id].total_simulation_times) > eps)
       UCT_nodes[0].pq.pop();
     else
       break;
@@ -541,7 +542,8 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
     while (1) {
       s = UCT_nodes[node_id].pq.top().first;
       x = UCT_nodes[node_id].pq.top().second;
-      if (abs(UCT_nodes[x].total_score - s) > eps) {
+      if (abs(UCT_nodes[x].total_score / UCT_nodes[x].total_simulation_times -
+              s) > eps) {
         UCT_nodes[node_id].pq.pop();
       } else
         break;
@@ -570,14 +572,13 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
         score += -s;
       }
 
-      UCT_nodes[child_id].total_simulation_times +=
-          SIMULATE_COUNT_PER_CHILD;
+      UCT_nodes[child_id].total_simulation_times += SIMULATE_COUNT_PER_CHILD;
       simulation_times += SIMULATE_COUNT_PER_CHILD;
 
-      UCT_nodes[node_id].pq.push(std::make_pair(
-          UCT_nodes[child_id].total_score /
-              UCT_nodes[child_id].total_simulation_times,
-          child_id));
+      UCT_nodes[node_id].pq.push(
+          std::make_pair(UCT_nodes[child_id].total_score /
+                             UCT_nodes[child_id].total_simulation_times,
+                         child_id));
     }
   }
 
