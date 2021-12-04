@@ -38,6 +38,9 @@ struct UCTNode {
   double total_score;
 };
 
+extern UCTNode UCT_nodes[MAX_NODE];
+extern int UCT_nodes_size;
+
 class MyAI {
   const char* commands_name[COMMAND_NUM] = {
       "protocol_version",  "name",          "version",
@@ -75,8 +78,6 @@ class MyAI {
   int Color;
   int Red_Time, Black_Time;
   ChessBoard main_chessboard;
-  UCTNode UCT_nodes[MAX_NODE];
-  int UCT_nodes_size;
   const double eps = 1e-6;
 
 #ifdef WINDOWS

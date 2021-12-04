@@ -230,6 +230,9 @@ void MyAI::assignUCTNode(int id, int last_move) {
   UCT_nodes[id].total_simulation_times = 0;
 }
 
+UCTNode UCT_nodes[MAX_NODE];
+int UCT_nodes_size;
+
 void MyAI::generateMove(char move[6]) {
 #ifdef WINDOWS
   begin = clock();
@@ -237,7 +240,7 @@ void MyAI::generateMove(char move[6]) {
   gettimeofday(&begin, 0);
 #endif
 
-  this->UCT_nodes_size = 0;
+  UCT_nodes_size = 0;
   assignUCTNode(UCT_nodes_size++, 0);
   while (!isTimeUp()) {
     nega_Max(this->main_chessboard, 0, 0);
