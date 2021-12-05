@@ -245,7 +245,7 @@ void MyAI::generateMove(char move[6]) {
   assignUCTNode(UCT_nodes_size++, 0);
   while (!isTimeUp()) {
     std::pair<double, int> ret =
-        nega_Max(this->main_chessboard, 0, this->Color);
+        nega_Max(this->main_chessboard, 0, this->Color, 0);
     UCT_nodes[0].total_score += ret.first;
     UCT_nodes[0].total_simulation_times += ret.second;
   }
@@ -537,17 +537,16 @@ double MyAI::calculate_uct(double score, int tot, int parent_tot) {
   if (tot == 0) {
     return 0.;
   } else {
-    if(parent_tot <= 0) fprintf(stderr, "pt <= 0\n");
-    if(log(parent_tot) / tot < 0) fprintf(stderr, "square root < 0\n");
     return score / tot + exploration * sqrt(log(parent_tot) / tot);
   }
 }
 
 std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
-                                      int color) {
+                                      int color, int depth) {
   // return <total score, total simulation time>
-  if (isFinish(&chessboard, 100) || isTimeUp())
+  if (isFinish(&chessboard, 100) || isTimeUp()){
     return std::make_pair(0, 0);  // 100: dummy
+  }
   double score = 0.;
   int simulation_times = 0;
   if (UCT_nodes[node_id].pq.size() != 0) {  // not leaf node
@@ -562,10 +561,9 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
         break;
       }
     }
-    if(UCT_nodes[node_id].pq.empty()) fprintf(stderr, "pq empty!\n");
     UCTNode next_node = UCT_nodes[x];
     MakeMove(&chessboard, next_node.last_move, 0);
-    std::pair<double, int> ret = nega_Max(chessboard, x, color ^ 1);
+    std::pair<double, int> ret = nega_Max(chessboard, x, color ^ 1, depth + 1);
 
     score -= ret.first;
     simulation_times += ret.second;

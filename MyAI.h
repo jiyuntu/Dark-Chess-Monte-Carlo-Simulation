@@ -81,7 +81,7 @@ class MyAI {
   int Red_Time, Black_Time;
   ChessBoard main_chessboard;
   const double eps = 1e-6;
-  const double exploration = sqrt(2);
+  const double exploration = -sqrt(2);
 
 #ifdef WINDOWS
   clock_t begin;
@@ -112,7 +112,7 @@ class MyAI {
   bool isFinish(const ChessBoard* chessboard, int move_count);
   void assignUCTNode(int id, int last_move);
   std::pair<double, int> nega_Max(ChessBoard chessboard, int node_id,
-                                  int depth);
+                                  int color, int depth);
   double calculate_uct(double score, int tot, int parent_tot);
 
   // Display
