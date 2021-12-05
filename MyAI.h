@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdbool.h>
 
 #include <queue>
 #include <utility>
@@ -42,6 +43,9 @@ struct UCTNode {
 
 extern UCTNode UCT_nodes[MAX_NODE];
 extern int UCT_nodes_size;
+extern bool play[32][32][32][32];
+extern int RAVE_moves[1024][128];
+extern int RAVE_moves_from[1024][128], RAVE_moves_to[1024][128];
 
 class MyAI {
   const char* commands_name[COMMAND_NUM] = {
@@ -107,7 +111,7 @@ class MyAI {
   int Expand(const int* board, const int color, int* Result);
   double Evaluate(const ChessBoard* chessboard, const int legal_move_count,
                   const int color);
-  double Simulate(ChessBoard chessboard, int color);
+  std::pair<double, int> Simulate(ChessBoard chessboard, int color);
   bool isDraw(const ChessBoard* chessboard);
   bool isFinish(const ChessBoard* chessboard, int move_count);
   void assignUCTNode(int id, int last_move);

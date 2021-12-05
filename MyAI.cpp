@@ -204,7 +204,11 @@ int MyAI::ConvertChessNo(int input) {
   return -1;
 }
 
+bool play[32][32][32][32];
+
 void MyAI::initBoardState() {
+  memset(play, 0, sizeof(play));
+
   int iPieceCount[14] = {5, 2, 2, 2, 2, 2, 1, 5, 2, 2, 2, 2, 2, 1};
   memcpy(main_chessboard.CoverChess, iPieceCount, sizeof(int) * 14);
   main_chessboard.Red_Chess_Num = 16;
@@ -544,7 +548,7 @@ double MyAI::calculate_uct(double score, int tot, int parent_tot) {
 std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
                                       int color, int depth) {
   // return <total score, total simulation time>
-  if (isFinish(&chessboard, 100) || isTimeUp()){
+  if (isFinish(&chessboard, 100) || isTimeUp()) {
     return std::make_pair(0, 0);  // 100: dummy
   }
   double score = 0.;
@@ -584,13 +588,12 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
       MakeMove(&child_board, Moves[i], 0);
 
       for (int k = 0; k < SIMULATE_COUNT_PER_CHILD; ++k) {
-        double s = Simulate(child_board, color ^ 1);
-        UCT_nodes[child_id].total_score += s;
-        score += -s;
+        std::pair<double, int> s = Simulate(child_board, color ^ 1);
+        UCT_nodes[child_id].total_score += s.first;
+        score += -s.first;
+        UCT_nodes[child_id].total_simulation_times += s.second;
+        simulation_times += s.second;
       }
-
-      UCT_nodes[child_id].total_simulation_times += SIMULATE_COUNT_PER_CHILD;
-      simulation_times += SIMULATE_COUNT_PER_CHILD;
     }
 
     for (int i = 0; i < move_count; i++) {
@@ -607,28 +610,41 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
   return std::make_pair(score, simulation_times);
 }
 
-double MyAI::Simulate(ChessBoard chessboard, int color) {
-  int Moves[128];
-  int moveNum;
-  int turn_color = color;
+int RAVE_moves[1024][128];
+int moveNum[1024];
+int RAVE_moves_from[1024][128], RAVE_moves_to[1024][128];
 
-  while (true) {
+std::pair<double, int> MyAI::Simulate(ChessBoard chessboard, int color) {
+  int moves[1024], chess[1024];
+  int turn_color = color;
+  double score;
+
+  int simulate_depth = 0;
+  for (;; simulate_depth++) {
     // Expand
-    moveNum = Expand(chessboard.Board, turn_color, Moves);
+    moveNum[simulate_depth] =
+        Expand(chessboard.Board, turn_color, RAVE_moves[simulate_depth]);
+    for (int i = 0; i < moveNum[simulate_depth]; i++) {
+      RAVE_moves_to[simulate_depth][i] =
+          chessboard.Board[RAVE_moves[simulate_depth][i] % 100];
+      RAVE_moves_from[simulate_depth][i] =
+          chessboard.Board[RAVE_moves[simulate_depth][i] / 100];
+    }
 
     // Check if is finish
-    if (isFinish(&chessboard, moveNum)) {
-      return Evaluate(&chessboard, moveNum, turn_color) *
-             (color == this->Color ? 1 : -1);
+    if (isFinish(&chessboard, moveNum[simulate_depth])) {
+      score = Evaluate(&chessboard, moveNum[simulate_depth], turn_color) *
+              (color == this->Color ? 1 : -1);
+      break;
     }
 
     // distinguish eat-move and pure-move
     int eatMove[128], eatMoveNum = 0;
-    for (int i = 0; i < moveNum; ++i) {
-      int dstPiece = chessboard.Board[Moves[i] % 100];
+    for (int i = 0; i < moveNum[simulate_depth]; ++i) {
+      int dstPiece = chessboard.Board[RAVE_moves[simulate_depth][i] % 100];
       if (dstPiece != CHESS_EMPTY) {
         // eat-move
-        eatMove[eatMoveNum] = Moves[i];
+        eatMove[eatMoveNum] = RAVE_moves[simulate_depth][i];
         eatMoveNum++;
       }
     }
@@ -636,12 +652,35 @@ double MyAI::Simulate(ChessBoard chessboard, int color) {
     // Random Move
     bool selectEat = (eatMoveNum == 0 ? false : randIndex(2));
     int move = (selectEat ? eatMove[randIndex(eatMoveNum)]
-                          : Moves[randIndex(moveNum)]);
+                          : RAVE_moves[simulate_depth][randIndex(moveNum[simulate_depth])]);
+    moves[simulate_depth] = move;
+    chess[simulate_depth] =
+        chessboard.Board[move / 100] * 100 + chessboard.Board[move % 100];
     MakeMove(&chessboard, move, 0);  // 0: dummy
 
     // Change color
     turn_color ^= 1;
   }
+
+  int cnt = 1;
+  for (int rev_depth = simulate_depth - 1; rev_depth >= 0; rev_depth--) {
+    play[moves[simulate_depth] / 100][moves[simulate_depth] % 100]
+        [chess[simulate_depth] / 100][chess[simulate_depth] % 100] = true;
+    for (int i = 0; i < moveNum[rev_depth]; i++) {
+      int mov = RAVE_moves[rev_depth][i];
+      if (mov == moves[rev_depth]) continue;
+      if (play[mov / 100][mov % 100][RAVE_moves_from[rev_depth][i]]
+              [RAVE_moves_to[rev_depth][i]]) {
+        cnt++;
+      }
+    }
+  }
+
+  for (int i = 0; i < simulate_depth; i++)
+    play[moves[i] / 100][moves[i] % 100][chess[i] / 100][chess[i] % 100] =
+        false;
+
+  return std::make_pair(score * cnt, cnt);
 }
 
 bool MyAI::isDraw(const ChessBoard* chessboard) {
