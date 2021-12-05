@@ -534,10 +534,13 @@ double MyAI::Evaluate(const ChessBoard* chessboard, const int legal_move_count,
 }
 
 double MyAI::calculate_uct(double score, int tot, int parent_tot) {
-  if (tot == 0)
+  if (tot == 0) {
     return 0.;
-  else
+  } else {
+    if(parent_tot <= 0) fprintf(stderr, "pt <= 0\n");
+    if(log(parent_tot) / tot < 0) fprintf(stderr, "square root < 0\n");
     return score / tot + exploration * sqrt(log(parent_tot) / tot);
+  }
 }
 
 std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
@@ -555,9 +558,11 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
       x = UCT_nodes[node_id].pq.top().second;
       if (abs(UCT_nodes[x].UCT_score - s) > eps) {
         UCT_nodes[node_id].pq.pop();
-      } else
+      } else {
         break;
+      }
     }
+    if(UCT_nodes[node_id].pq.empty()) fprintf(stderr, "pq empty!\n");
     UCTNode next_node = UCT_nodes[x];
     MakeMove(&chessboard, next_node.last_move, 0);
     std::pair<double, int> ret = nega_Max(chessboard, x, color ^ 1);
