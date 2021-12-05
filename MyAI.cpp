@@ -230,9 +230,11 @@ void MyAI::initBoardState() {
 void MyAI::assignUCTNode(int id, int last_move) {
   while (!UCT_nodes[id].pq.empty()) UCT_nodes[id].pq.pop();
   UCT_nodes[id].last_move = last_move;
-  UCT_nodes[id].total_score = 0.;
+  UCT_nodes[id].real_score = 0.;
+  UCT_nodes[id].RAVE_score = 0.;
   UCT_nodes[id].UCT_score = 0.;
-  UCT_nodes[id].total_simulation_times = 0;
+  UCT_nodes[id].real_simulation_times = 0;
+  UCT_nodes[id].RAVE_simulation_times = 0;
 }
 
 UCTNode UCT_nodes[MAX_NODE];
@@ -248,10 +250,12 @@ void MyAI::generateMove(char move[6]) {
   UCT_nodes_size = 0;
   assignUCTNode(UCT_nodes_size++, 0);
   while (!isTimeUp()) {
-    std::pair<double, int> ret =
+    std::pair<std::pair<double, int>, std::pair<double, int> > ret =
         nega_Max(this->main_chessboard, 0, this->Color, 0);
-    UCT_nodes[0].total_score += ret.first;
-    UCT_nodes[0].total_simulation_times += ret.second;
+    UCT_nodes[0].real_score += ret.first.first;
+    UCT_nodes[0].real_simulation_times += ret.first.second;
+    UCT_nodes[0].RAVE_score += ret.second.first;
+    UCT_nodes[0].RAVE_simulation_times += ret.second.second;
   }
 
   double s;
@@ -273,7 +277,7 @@ void MyAI::generateMove(char move[6]) {
   sprintf(move, "%c%c-%c%c", 'a' + (tmp_start % 4), '1' + (7 - tmp_start / 4),
           'a' + (tmp_end % 4), '1' + (7 - tmp_end / 4));
   fprintf(stderr, "Move: %s, Score: %+5lf, Sim_Count: %7d\n", move,
-          UCT_nodes[id].UCT_score, UCT_nodes[id].total_simulation_times);
+          UCT_nodes[id].UCT_score, UCT_nodes[id].real_simulation_times);
   fflush(stderr);
 
   // set return value
@@ -282,8 +286,8 @@ void MyAI::generateMove(char move[6]) {
   Pirnf_Chess(main_chessboard.Board[tmp_start], chess_Start);
   Pirnf_Chess(main_chessboard.Board[tmp_end], chess_End);
   printf("My result: \n--------------------------\n");
-  printf("MCS_pure: %lf (simulation count: %d)\n", UCT_nodes[id].UCT_score,
-         UCT_nodes[id].total_simulation_times);
+  printf("UCT: %lf (simulation count: %d)\n", UCT_nodes[id].UCT_score,
+         UCT_nodes[id].real_simulation_times);
   printf("(%d) -> (%d)\n", tmp_start, tmp_end);
   printf("<%s> -> <%s>\n", chess_Start, chess_End);
   printf("move:%s\n", move);
@@ -537,22 +541,40 @@ double MyAI::Evaluate(const ChessBoard* chessboard, const int legal_move_count,
   return score;
 }
 
-double MyAI::calculate_uct(double score, int tot, int parent_tot) {
-  if (tot == 0) {
-    return 0.;
-  } else {
-    return score / tot + exploration * sqrt(log(parent_tot) / tot);
-  }
+double MyAI::calculate_uct(double real_score, int real_simulation_times,
+                           double RAVE_score, int RAVE_simulation_times,
+                           int parent_real_simulation_times,
+                           int parent_RAVE_simulation_times) {
+  double real_UCT =
+      real_simulation_times == 0
+          ? 0.
+          : real_score / real_simulation_times +
+                exploration * sqrt(log(parent_real_simulation_times) /
+                                   real_simulation_times);
+  double RAVE_UCT =
+      RAVE_simulation_times == 0
+          ? 0.
+          : RAVE_score / RAVE_simulation_times +
+                exploration * sqrt(log(parent_RAVE_simulation_times) /
+                                   RAVE_simulation_times);
+
+  double beta = RAVE_simulation_times /
+                (real_simulation_times + RAVE_simulation_times +
+                 4 * RAVE_parameter * RAVE_parameter * real_simulation_times *
+                     RAVE_simulation_times);
+  
+  return (1 - beta) * real_UCT + beta * RAVE_UCT;
 }
 
-std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
-                                      int color, int depth) {
-  // return <total score, total simulation time>
+std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
+    ChessBoard chessboard, int node_id, int color, int depth) {
+  // return < <real score, real simulation times>, <RAVE score, RAVE simulation
+  // times> >
   if (isFinish(&chessboard, 100) || isTimeUp()) {
-    return std::make_pair(0, 0);  // 100: dummy
+    return std::make_pair(std::make_pair(0, 0), std::make_pair(0, 0));  // 100: dummy
   }
-  double score = 0.;
-  int simulation_times = 0;
+  double real_score = 0., RAVE_score = 0.;
+  int real_simulation_times = 0, RAVE_simulation_times = 0;
   if (UCT_nodes[node_id].pq.size() != 0) {  // not leaf node
     int x;
     double s;
@@ -567,15 +589,23 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
     }
     UCTNode next_node = UCT_nodes[x];
     MakeMove(&chessboard, next_node.last_move, 0);
-    std::pair<double, int> ret = nega_Max(chessboard, x, color ^ 1, depth + 1);
+    std::pair<std::pair<double, int>, std::pair<double, int> > ret =
+        nega_Max(chessboard, x, color ^ 1, depth + 1);
 
-    score -= ret.first;
-    simulation_times += ret.second;
-    UCT_nodes[x].total_score += ret.first;
-    UCT_nodes[x].total_simulation_times += ret.second;
+    real_score -= ret.first.first;
+    real_simulation_times += ret.first.second;
+    RAVE_score -= ret.second.first;
+    RAVE_simulation_times += ret.second.second;
+
+    UCT_nodes[x].real_score += ret.first.first;
+    UCT_nodes[x].real_simulation_times += ret.first.second;
+    UCT_nodes[x].RAVE_score += ret.second.first;
+    UCT_nodes[x].RAVE_simulation_times += ret.second.second;
     UCT_nodes[x].UCT_score = calculate_uct(
-        UCT_nodes[x].total_score, UCT_nodes[x].total_simulation_times,
-        UCT_nodes[node_id].total_simulation_times + simulation_times);
+        UCT_nodes[x].real_score, UCT_nodes[x].real_simulation_times,
+        UCT_nodes[x].RAVE_score, UCT_nodes[x].RAVE_simulation_times,
+        UCT_nodes[node_id].real_simulation_times + real_simulation_times,
+        UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
     UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[x].UCT_score, x));
   } else {  // leaf node
     int Moves[2048];
@@ -589,25 +619,32 @@ std::pair<double, int> MyAI::nega_Max(ChessBoard chessboard, int node_id,
 
       for (int k = 0; k < SIMULATE_COUNT_PER_CHILD; ++k) {
         std::pair<double, int> s = Simulate(child_board, color ^ 1);
-        UCT_nodes[child_id].total_score += s.first;
-        score += -s.first;
-        UCT_nodes[child_id].total_simulation_times += s.second;
-        simulation_times += s.second;
+        UCT_nodes[child_id].real_score += s.first / s.second;
+        UCT_nodes[child_id].RAVE_score += s.first;
+        real_score -= s.first / s.second;
+        RAVE_score -= s.first;
+        UCT_nodes[child_id].real_simulation_times += 1;
+        UCT_nodes[child_id].RAVE_simulation_times += s.second;
+        real_simulation_times++;
+        RAVE_simulation_times += s.second;
       }
     }
 
     for (int i = 0; i < move_count; i++) {
       int child_id = UCT_nodes_size - move_count + i;
       UCT_nodes[child_id].UCT_score = calculate_uct(
-          UCT_nodes[child_id].total_score,
-          UCT_nodes[child_id].total_simulation_times,
-          UCT_nodes[node_id].total_simulation_times + simulation_times);
+          UCT_nodes[child_id].real_score,
+          UCT_nodes[child_id].real_simulation_times,
+          UCT_nodes[child_id].RAVE_score,
+          UCT_nodes[child_id].RAVE_simulation_times,
+          UCT_nodes[node_id].real_simulation_times + real_simulation_times,
+          UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
       UCT_nodes[node_id].pq.push(
           std::make_pair(UCT_nodes[child_id].UCT_score, child_id));
     }
   }
 
-  return std::make_pair(score, simulation_times);
+  return std::make_pair(std::make_pair(real_score, real_simulation_times), std::make_pair(RAVE_score, RAVE_simulation_times));
 }
 
 int RAVE_moves[1024][128];
@@ -651,8 +688,10 @@ std::pair<double, int> MyAI::Simulate(ChessBoard chessboard, int color) {
 
     // Random Move
     bool selectEat = (eatMoveNum == 0 ? false : randIndex(2));
-    int move = (selectEat ? eatMove[randIndex(eatMoveNum)]
-                          : RAVE_moves[simulate_depth][randIndex(moveNum[simulate_depth])]);
+    int move =
+        (selectEat
+             ? eatMove[randIndex(eatMoveNum)]
+             : RAVE_moves[simulate_depth][randIndex(moveNum[simulate_depth])]);
     moves[simulate_depth] = move;
     chess[simulate_depth] =
         chessboard.Board[move / 100] * 100 + chessboard.Board[move % 100];

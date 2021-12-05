@@ -2,17 +2,17 @@
 #define MYAI_INCLUDED
 
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <stdbool.h>
 
+#include <functional>
 #include <queue>
 #include <utility>
 #include <vector>
-#include <functional>
 
 #include "pcg_basic.h"
 
@@ -35,9 +35,12 @@ struct ChessBoard {
 };
 
 struct UCTNode {
-  std::priority_queue<std::pair<double, int>, std::vector<std::pair<double, int> >, std::greater<std::pair<double, int> > > pq;
-  int last_move, total_simulation_times;
-  double total_score;
+  std::priority_queue<std::pair<double, int>,
+                      std::vector<std::pair<double, int> >,
+                      std::greater<std::pair<double, int> > >
+      pq;
+  int last_move, real_simulation_times, RAVE_simulation_times;
+  double real_score, RAVE_score;
   double UCT_score;
 };
 
@@ -86,6 +89,7 @@ class MyAI {
   ChessBoard main_chessboard;
   const double eps = 1e-6;
   const double exploration = -0.25;
+  const double RAVE_parameter = 0.1;
 
 #ifdef WINDOWS
   clock_t begin;
@@ -115,9 +119,12 @@ class MyAI {
   bool isDraw(const ChessBoard* chessboard);
   bool isFinish(const ChessBoard* chessboard, int move_count);
   void assignUCTNode(int id, int last_move);
-  std::pair<double, int> nega_Max(ChessBoard chessboard, int node_id,
-                                  int color, int depth);
-  double calculate_uct(double score, int tot, int parent_tot);
+  std::pair<std::pair<double, int>, std::pair<double, int> > nega_Max(ChessBoard chessboard, int node_id, int color,
+                                  int depth);
+  double calculate_uct(double real_score, int real_simulation_times,
+                       double RAVE_score, int RAVE_simulation_times,
+                       int parent_real_simulation_times,
+                       int parent_RAVE_simulation_times);
 
   // Display
   void Pirnf_Chess(int chess_no, char* Result);
