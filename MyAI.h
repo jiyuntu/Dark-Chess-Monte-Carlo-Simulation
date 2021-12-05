@@ -85,7 +85,7 @@ class MyAI {
   int Red_Time, Black_Time;
   ChessBoard main_chessboard;
   const double eps = 1e-6;
-  const double exploration = -sqrt(2);
+  const double exploration = -0.25;
 
 #ifdef WINDOWS
   clock_t begin;
