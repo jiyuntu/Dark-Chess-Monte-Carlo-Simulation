@@ -241,6 +241,8 @@ void MyAI::assignUCTNode(int id, int last_move) {
 UCTNode UCT_nodes[MAX_NODE];
 int UCT_nodes_size;
 
+std::priority_queue<std::pair<double, int>, std::vector<std::pair<double,int> >, std::greater<std::pair<double, int> > > root_pq;
+
 void MyAI::generateMove(char move[6]) {
 #ifdef WINDOWS
   begin = clock();
@@ -248,6 +250,7 @@ void MyAI::generateMove(char move[6]) {
   gettimeofday(&begin, 0);
 #endif
 
+  while(!root_pq.empty()) root_pq.pop();
   UCT_nodes_size = 0;
   assignUCTNode(UCT_nodes_size++, 0);
   while (!isTimeUp()) {
@@ -261,11 +264,11 @@ void MyAI::generateMove(char move[6]) {
 
   double s;
   int id = 0;
-  while (!UCT_nodes[0].pq.empty()) {
-    s = UCT_nodes[0].pq.top().first;
-    id = UCT_nodes[0].pq.top().second;
-    if (abs(s - UCT_nodes[id].probability) > eps)
-      UCT_nodes[0].pq.pop();
+  while (!root_pq.empty()) {
+    s = root_pq.top().first;
+    id = root_pq.top().second;
+    if (abs(s - UCT_nodes[id].real_score / UCT_nodes[id].real_simulation_times) > eps)
+      root_pq.pop();
     else
       break;
   }
@@ -609,6 +612,7 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
         UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
     UCT_nodes[x].probability = exp(UCT_nodes[x].UCT_score / temparature);
     UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[x].probability, x));
+    if(node_id == 0) root_pq.push(std::make_pair(UCT_nodes[x].real_score / UCT_nodes[x].real_simulation_times, x));
   } else {  // leaf node
     int Moves[2048];
     int move_count = Expand(chessboard.Board, color, Moves);
@@ -644,6 +648,7 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
       UCT_nodes[child_id].probability = exp(UCT_nodes[child_id].UCT_score / temparature);
       UCT_nodes[node_id].pq.push(
           std::make_pair(UCT_nodes[child_id].probability, child_id));
+      if(node_id == 0) root_pq.push(std::make_pair(UCT_nodes[child_id].real_score / UCT_nodes[child_id].real_simulation_times, child_id));
     }
   }
 
