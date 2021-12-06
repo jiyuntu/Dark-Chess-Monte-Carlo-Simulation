@@ -50,6 +50,7 @@ extern int UCT_nodes_size;
 extern bool play[32][32][32][32];
 extern int RAVE_moves[1024][128];
 extern int RAVE_moves_from[1024][128], RAVE_moves_to[1024][128];
+extern std::priority_queue<std::pair<double, int>, std::vector<std::pair<double,int> >, std::greater<std::pair<double, int> > > root_pq;
 
 class MyAI {
   const char* commands_name[COMMAND_NUM] = {
