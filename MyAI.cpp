@@ -21,6 +21,7 @@
 #define POSITION_REPETITION_LIMIT 3
 
 #define SIMULATE_COUNT_PER_CHILD 10
+#define MAX_SIMULATION_COUNT 10000
 
 MyAI::MyAI(void) {
   pcg32_srandom_r(&this->rng, time(NULL) ^ (intptr_t)&printf,
@@ -580,7 +581,7 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
     while (!UCT_nodes[node_id].pq.empty()) {
       s = UCT_nodes[node_id].pq.top().first;
       x = UCT_nodes[node_id].pq.top().second;
-      if (abs(UCT_nodes[x].UCT_score - s) > eps) {
+      if (abs(UCT_nodes[x].UCT_score - s) > eps || UCT_nodes[x].real_simulation_times > MAX_SIMULATION_COUNT) {
         UCT_nodes[node_id].pq.pop();
       } else {
         break;
