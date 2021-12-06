@@ -1,6 +1,7 @@
 #ifndef MYAI_INCLUDED
 #define MYAI_INCLUDED
 
+#include <assert.h>
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -8,7 +9,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <assert.h>
 
 #include <functional>
 #include <queue>
@@ -50,7 +50,10 @@ extern int UCT_nodes_size;
 extern bool play[32][32][32][32];
 extern int RAVE_moves[1024][128];
 extern int RAVE_moves_from[1024][128], RAVE_moves_to[1024][128];
-extern std::priority_queue<std::pair<double, int>, std::vector<std::pair<double,int> >, std::greater<std::pair<double, int> > > root_pq;
+extern std::priority_queue<std::pair<double, int>,
+                           std::vector<std::pair<double, int> >,
+                           std::greater<std::pair<double, int> > >
+    root_pq;
 
 class MyAI {
   const char* commands_name[COMMAND_NUM] = {
@@ -121,12 +124,13 @@ class MyAI {
   bool isDraw(const ChessBoard* chessboard);
   bool isFinish(const ChessBoard* chessboard, int move_count);
   void assignUCTNode(int id, int last_move);
-  std::pair<std::pair<double, int>, std::pair<double, int> > nega_Max(ChessBoard chessboard, int node_id, int color,
-                                  int depth);
+  std::pair<std::pair<double, int>, std::pair<double, int> > nega_Max(
+      ChessBoard chessboard, int node_id, int color, int depth);
   double calculate_uct(double real_score, int real_simulation_times,
                        double RAVE_score, int RAVE_simulation_times,
                        int parent_real_simulation_times,
                        int parent_RAVE_simulation_times);
+  bool toBeEaten(int x, int y);
 
   // Display
   void Pirnf_Chess(int chess_no, char* Result);

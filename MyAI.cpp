@@ -213,7 +213,8 @@ void MyAI::initBoardState() {
   for (int i = 0; i < 32; i++) {
     int Move[4] = {i - 4, i + 1, i + 4, i - 1};
     for (int k = 0; k < 4; k++) {
-      if (Move[k] >= 0 && Move[k] < 32 && abs(Move[k] / 4 - i / 4) + abs(Move[k] % 4 - i % 4) == 1) {
+      if (Move[k] >= 0 && Move[k] < 32 &&
+          abs(Move[k] / 4 - i / 4) + abs(Move[k] % 4 - i % 4) == 1) {
         graph[i].push_back(Move[k]);
       }
     }
@@ -371,7 +372,7 @@ int MyAI::Expand(const int* board, const int color, int* Result) {
           }
         }
       } else {
-        for (int mv: graph[i]) {
+        for (int mv : graph[i]) {
           if (Referee(board, i, mv, color)) {
             Result[ResultCount] = i * 100 + mv;
             ResultCount++;
@@ -668,6 +669,28 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
                         std::make_pair(RAVE_score, RAVE_simulation_times));
 }
 
+bool MyAI::toBeEaten(int x,
+                     int y) {  // determined if y>=x and color(y)!=color(x)
+  if (0 <= x && x < 7 && 7 <= y && y < 14) {
+    if (0 < x && x < 6) {  // not K or P
+      return (7 <= y && y < 14 && y >= x + 7);
+    } else if (x == 6) {  // K
+      return y == 13 || y == 7;
+    } else if (x == 0) {  // P
+      return (7 <= y && y < 14 && y != 13);
+    }
+  } else if (0 <= y && y < 7 && 7 <= x && x < 14) {
+    if (7 < x && x < 13) {  // not k or p
+      return (0 <= y && y < 7 && y >= x - 7);
+    } else if (x == 13) {
+      return y == 0 || y == 6;
+    } else if (x == 7) {
+      return 0 <= y && y < 7 && y != 6;
+    }
+  }
+  return false;
+}
+
 int RAVE_moves[1024][128];
 int moveNum[1024];
 int RAVE_moves_from[1024][128], RAVE_moves_to[1024][128];
@@ -698,21 +721,36 @@ std::pair<double, int> MyAI::Simulate(ChessBoard chessboard, int color) {
 
     // distinguish eat-move and pure-move
     int eatMove[128], eatMoveNum = 0;
+    int notBeenEatenMove[128], notBeenEatenMoveNum = 0;
     for (int i = 0; i < moveNum[simulate_depth]; ++i) {
+      int dst = RAVE_moves[simulate_depth][i] % 100;
       int dstPiece = chessboard.Board[RAVE_moves[simulate_depth][i] % 100];
+      int srcPiece = chessboard.Board[RAVE_moves[simulate_depth][i] / 100];
+
       if (dstPiece != CHESS_EMPTY) {
         // eat-move
         eatMove[eatMoveNum] = RAVE_moves[simulate_depth][i];
         eatMoveNum++;
       }
+
+      // escape Eaten
+      for (int neighbor : graph[dst]) {
+        if (!toBeEaten(srcPiece, chessboard.Board[neighbor])) {
+          notBeenEatenMove[notBeenEatenMoveNum++] =
+              RAVE_moves[simulate_depth][i];
+        }
+      }
     }
 
-    // Random Move
+    // random move
+    int prob_parameter = 2;
     bool selectEat = (eatMoveNum == 0 ? false : randIndex(2));
-    int move =
-        (selectEat
-             ? eatMove[randIndex(eatMoveNum)]
-             : RAVE_moves[simulate_depth][randIndex(moveNum[simulate_depth])]);
+    bool selectNotBeenEaten = notBeenEatenMoveNum == 0 ? false : randIndex(prob_parameter);
+    int move;
+    if(selectEat) move = eatMove[randIndex(eatMoveNum)];
+    else if(selectNotBeenEaten < prob_parameter - 1) move = notBeenEatenMove[randIndex(notBeenEatenMoveNum)];
+    else move = RAVE_moves[simulate_depth][randIndex(moveNum[simulate_depth])];
+
     moves[simulate_depth] = move;
     chess[simulate_depth] =
         chessboard.Board[move / 100] * 100 + chessboard.Board[move % 100];
