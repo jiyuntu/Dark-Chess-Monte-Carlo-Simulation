@@ -235,6 +235,7 @@ void MyAI::assignUCTNode(int id, int last_move) {
   UCT_nodes[id].UCT_score = 0.;
   UCT_nodes[id].real_simulation_times = 0;
   UCT_nodes[id].RAVE_simulation_times = 0;
+  UCT_nodes[id].probability = 0.;
 }
 
 UCTNode UCT_nodes[MAX_NODE];
@@ -263,7 +264,7 @@ void MyAI::generateMove(char move[6]) {
   while (!UCT_nodes[0].pq.empty()) {
     s = UCT_nodes[0].pq.top().first;
     id = UCT_nodes[0].pq.top().second;
-    if (abs(s - UCT_nodes[id].UCT_score) > eps)
+    if (abs(s - UCT_nodes[id].probability) > eps)
       UCT_nodes[0].pq.pop();
     else
       break;
@@ -581,7 +582,7 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
     while (!UCT_nodes[node_id].pq.empty()) {
       s = UCT_nodes[node_id].pq.top().first;
       x = UCT_nodes[node_id].pq.top().second;
-      if (abs(UCT_nodes[x].UCT_score - s) > eps) {
+      if (abs(UCT_nodes[x].probability - s) > eps) {
         UCT_nodes[node_id].pq.pop();
       } else {
         break;
@@ -606,7 +607,8 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
         UCT_nodes[x].RAVE_score, UCT_nodes[x].RAVE_simulation_times,
         UCT_nodes[node_id].real_simulation_times + real_simulation_times,
         UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
-    UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[x].UCT_score, x));
+    UCT_nodes[x].probability = exp(UCT_nodes[x].UCT_score / temparature);
+    UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[x].probability, x));
   } else {  // leaf node
     int Moves[2048];
     int move_count = Expand(chessboard.Board, color, Moves);
@@ -639,8 +641,9 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
           UCT_nodes[child_id].RAVE_simulation_times,
           UCT_nodes[node_id].real_simulation_times + real_simulation_times,
           UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
+      UCT_nodes[child_id].probability = exp(UCT_nodes[child_id].UCT_score / temparature);
       UCT_nodes[node_id].pq.push(
-          std::make_pair(UCT_nodes[child_id].UCT_score, child_id));
+          std::make_pair(UCT_nodes[child_id].probability, child_id));
     }
   }
 
