@@ -45,6 +45,7 @@ struct UCTNode {
   double real_score, RAVE_score;
   double real_score_square_sum, RAVE_score_square_sum;
   double UCT_score;
+  double probability;
 };
 
 extern UCTNode UCT_nodes[MAX_NODE];
@@ -98,6 +99,7 @@ class MyAI {
   const double exploration = -0.25;
   const double parameter_c1 = sqrt(2), parameter_c2 = 0.25;
   const double RAVE_parameter = 0.05;
+  const double temparature = 0.05;
 
 #ifdef WINDOWS
   clock_t begin;

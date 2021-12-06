@@ -248,6 +248,7 @@ void MyAI::assignUCTNode(int id, int last_move) {
   UCT_nodes[id].UCT_score = 0.;
   UCT_nodes[id].real_simulation_times = 0;
   UCT_nodes[id].RAVE_simulation_times = 0;
+  UCT_nodes[id].probability = 0.;
 }
 
 UCTNode UCT_nodes[MAX_NODE];
@@ -577,10 +578,13 @@ double MyAI::calculate_uct(double real_score, int real_simulation_times,
   double RAVE_variance =
       RAVE_score_square_sum / RAVE_simulation_times -
       RAVE_score / RAVE_simulation_times * RAVE_score / RAVE_simulation_times;
-  double RAVE_V = RAVE_variance + parameter_c1 * sqrt(log(parent_RAVE_simulation_times) / RAVE_simulation_times);
-  double RAVE_UCT = RAVE_score / RAVE_simulation_times +
-                exploration * sqrt(log(parent_RAVE_simulation_times) /
-                                   RAVE_simulation_times * fmin(RAVE_V, parameter_c2));
+  double RAVE_V =
+      RAVE_variance + parameter_c1 * sqrt(log(parent_RAVE_simulation_times) /
+                                          RAVE_simulation_times);
+  double RAVE_UCT =
+      RAVE_score / RAVE_simulation_times +
+      exploration * sqrt(log(parent_RAVE_simulation_times) /
+                         RAVE_simulation_times * fmin(RAVE_V, parameter_c2));
 
   // double beta = RAVE_simulation_times /
   //               (real_simulation_times + RAVE_simulation_times +
@@ -612,7 +616,7 @@ MyAI::nega_Max(ChessBoard chessboard, int node_id, int color, int depth) {
     while (!UCT_nodes[node_id].pq.empty()) {
       s = UCT_nodes[node_id].pq.top().first;
       x = UCT_nodes[node_id].pq.top().second;
-      if (abs(UCT_nodes[x].UCT_score - s) > eps ||
+      if (abs(UCT_nodes[x].probability - s) > eps ||
           UCT_nodes[x].real_simulation_times > MAX_SIMULATION_COUNT) {
         UCT_nodes[node_id].pq.pop();
       } else {
@@ -644,7 +648,8 @@ MyAI::nega_Max(ChessBoard chessboard, int node_id, int color, int depth) {
         UCT_nodes[x].real_score_square_sum, UCT_nodes[x].RAVE_score_square_sum,
         UCT_nodes[node_id].real_simulation_times + real_simulation_times,
         UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
-    UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[x].UCT_score, x));
+    UCT_nodes[x].probability = exp(UCT_nodes[x].UCT_score / temparature);
+    UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[x].probability, x));
     if (node_id == 0)
       root_pq.push(std::make_pair(
           UCT_nodes[x].real_score / UCT_nodes[x].real_simulation_times, x));
@@ -689,8 +694,10 @@ MyAI::nega_Max(ChessBoard chessboard, int node_id, int color, int depth) {
           UCT_nodes[child_id].RAVE_score_square_sum,
           UCT_nodes[node_id].real_simulation_times + real_simulation_times,
           UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
+      UCT_nodes[child_id].probability =
+          exp(UCT_nodes[child_id].UCT_score / temparature);
       UCT_nodes[node_id].pq.push(
-          std::make_pair(UCT_nodes[child_id].UCT_score, child_id));
+          std::make_pair(UCT_nodes[child_id].probability, child_id));
       if (node_id == 0)
         root_pq.push(
             std::make_pair(UCT_nodes[child_id].real_score /
