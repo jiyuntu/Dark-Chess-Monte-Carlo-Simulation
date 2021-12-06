@@ -206,9 +206,18 @@ int MyAI::ConvertChessNo(int input) {
 }
 
 bool play[32][32][32][32];
+std::vector<int> graph[32];
 
 void MyAI::initBoardState() {
   memset(play, 0, sizeof(play));
+  for (int i = 0; i < 32; i++) {
+    int Move[4] = {i - 4, i + 1, i + 4, i - 1};
+    for (int k = 0; k < 4; k++) {
+      if (Move[k] >= 0 && Move[k] < 32 && abs(Move[k] / 4 - i / 4) + abs(Move[k] % 4 - i % 4) == 1) {
+        graph[i].push_back(Move[k]);
+      }
+    }
+  }
 
   int iPieceCount[14] = {5, 2, 2, 2, 2, 2, 1, 5, 2, 2, 2, 2, 2, 1};
   memcpy(main_chessboard.CoverChess, iPieceCount, sizeof(int) * 14);
@@ -241,7 +250,10 @@ void MyAI::assignUCTNode(int id, int last_move) {
 UCTNode UCT_nodes[MAX_NODE];
 int UCT_nodes_size;
 
-std::priority_queue<std::pair<double, int>, std::vector<std::pair<double,int> >, std::greater<std::pair<double, int> > > root_pq;
+std::priority_queue<std::pair<double, int>,
+                    std::vector<std::pair<double, int> >,
+                    std::greater<std::pair<double, int> > >
+    root_pq;
 
 void MyAI::generateMove(char move[6]) {
 #ifdef WINDOWS
@@ -250,7 +262,7 @@ void MyAI::generateMove(char move[6]) {
   gettimeofday(&begin, 0);
 #endif
 
-  while(!root_pq.empty()) root_pq.pop();
+  while (!root_pq.empty()) root_pq.pop();
   UCT_nodes_size = 0;
   assignUCTNode(UCT_nodes_size++, 0);
   while (!isTimeUp()) {
@@ -267,7 +279,8 @@ void MyAI::generateMove(char move[6]) {
   while (!root_pq.empty()) {
     s = root_pq.top().first;
     id = root_pq.top().second;
-    if (abs(s - UCT_nodes[id].real_score / UCT_nodes[id].real_simulation_times) > eps)
+    if (abs(s - UCT_nodes[id].real_score /
+                    UCT_nodes[id].real_simulation_times) > eps)
       root_pq.pop();
     else
       break;
@@ -358,11 +371,9 @@ int MyAI::Expand(const int* board, const int color, int* Result) {
           }
         }
       } else {
-        int Move[4] = {i - 4, i + 1, i + 4, i - 1};
-        for (int k = 0; k < 4; k++) {
-          if (Move[k] >= 0 && Move[k] < 32 &&
-              Referee(board, i, Move[k], color)) {
-            Result[ResultCount] = i * 100 + Move[k];
+        for (int mv: graph[i]) {
+          if (Referee(board, i, mv, color)) {
+            Result[ResultCount] = i * 100 + mv;
             ResultCount++;
           }
         }
@@ -521,11 +532,11 @@ double MyAI::Evaluate(const ChessBoard* chessboard, const int legal_move_count,
     }
   }
 
-  if (!win) {  // I lose
-    if (piece_value > 0) {                              // but net value > 0
+  if (!win) {               // I lose
+    if (piece_value > 0) {  // but net value > 0
       piece_value = 0;
     }
-  } else {  // Opponent lose
+  } else {                  // Opponent lose
     if (piece_value < 0) {  // but net value < 0
       piece_value = 0;
     }
@@ -581,7 +592,8 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
     while (!UCT_nodes[node_id].pq.empty()) {
       s = UCT_nodes[node_id].pq.top().first;
       x = UCT_nodes[node_id].pq.top().second;
-      if (abs(UCT_nodes[x].UCT_score - s) > eps || UCT_nodes[x].real_simulation_times > MAX_SIMULATION_COUNT) {
+      if (abs(UCT_nodes[x].UCT_score - s) > eps ||
+          UCT_nodes[x].real_simulation_times > MAX_SIMULATION_COUNT) {
         UCT_nodes[node_id].pq.pop();
       } else {
         break;
@@ -607,7 +619,9 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
         UCT_nodes[node_id].real_simulation_times + real_simulation_times,
         UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
     UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[x].UCT_score, x));
-    if(node_id == 0) root_pq.push(std::make_pair(UCT_nodes[x].real_score / UCT_nodes[x].real_simulation_times, x));
+    if (node_id == 0)
+      root_pq.push(std::make_pair(
+          UCT_nodes[x].real_score / UCT_nodes[x].real_simulation_times, x));
   } else {  // leaf node
     int Moves[2048];
     int move_count = Expand(chessboard.Board, color, Moves);
@@ -642,7 +656,11 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
           UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
       UCT_nodes[node_id].pq.push(
           std::make_pair(UCT_nodes[child_id].UCT_score, child_id));
-      if(node_id == 0) root_pq.push(std::make_pair(UCT_nodes[child_id].real_score / UCT_nodes[child_id].real_simulation_times, child_id));
+      if (node_id == 0)
+        root_pq.push(
+            std::make_pair(UCT_nodes[child_id].real_score /
+                               UCT_nodes[child_id].real_simulation_times,
+                           child_id));
     }
   }
 
