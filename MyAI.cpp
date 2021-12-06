@@ -482,20 +482,15 @@ double MyAI::Evaluate(const ChessBoard* chessboard, const int legal_move_count,
                       const int color) {
   // score = My Score - Opponent's Score
   double score = 0;
+  int win = 0;
 
-  if (legal_move_count == 0) {   // Win, Lose
-    if (color == this->Color) {  // Lose
-      score += LOSE - WIN;
-    } else {  // Win
-      score += WIN - LOSE;
-    }
-  } else if (isDraw(chessboard)) {  // Draw
-                                    // score = DRAW - DRAW;
+  if (color == this->Color || isDraw(chessboard)) {  // Lose
+    score += LOSE - WIN;
+  } else {  // Win
+    score += WIN - LOSE;
+    win = 1;
   }
 
-  // Bonus (Only Win / Draw)
-  // static material values
-  // empty is zero
   const double values[14] = {1, 180, 6, 18, 90, 270, 810,
                              1, 180, 6, 18, 90, 270, 810};
 
@@ -522,11 +517,11 @@ double MyAI::Evaluate(const ChessBoard* chessboard, const int legal_move_count,
     }
   }
 
-  if (legal_move_count == 0 && color == this->Color) {  // I lose
+  if (!win) {  // I lose
     if (piece_value > 0) {                              // but net value > 0
       piece_value = 0;
     }
-  } else if (legal_move_count == 0 && color != this->Color) {  // Opponent lose
+  } else {  // Opponent lose
     if (piece_value < 0) {  // but net value < 0
       piece_value = 0;
     }
@@ -562,7 +557,7 @@ double MyAI::calculate_uct(double real_score, int real_simulation_times,
                 (real_simulation_times + RAVE_simulation_times +
                  4 * RAVE_parameter * RAVE_parameter * real_simulation_times *
                      RAVE_simulation_times);
-  
+
   return (1 - beta) * real_UCT + beta * RAVE_UCT;
 }
 
@@ -571,7 +566,8 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
   // return < <real score, real simulation times>, <RAVE score, RAVE simulation
   // times> >
   if (isFinish(&chessboard, 100) || isTimeUp()) {
-    return std::make_pair(std::make_pair(0, 0), std::make_pair(0, 0));  // 100: dummy
+    return std::make_pair(std::make_pair(0, 0),
+                          std::make_pair(0, 0));  // 100: dummy
   }
   double real_score = 0., RAVE_score = 0.;
   int real_simulation_times = 0, RAVE_simulation_times = 0;
@@ -644,7 +640,8 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
     }
   }
 
-  return std::make_pair(std::make_pair(real_score, real_simulation_times), std::make_pair(RAVE_score, RAVE_simulation_times));
+  return std::make_pair(std::make_pair(real_score, real_simulation_times),
+                        std::make_pair(RAVE_score, RAVE_simulation_times));
 }
 
 int RAVE_moves[1024][128];
