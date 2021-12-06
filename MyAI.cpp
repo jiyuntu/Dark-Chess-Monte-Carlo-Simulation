@@ -622,6 +622,10 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
     if (node_id == 0)
       root_pq.push(std::make_pair(
           UCT_nodes[x].real_score / UCT_nodes[x].real_simulation_times, x));
+    // for temperature
+    // UCT_nodes[x].probability = exp(UCT_nodes[x].UCT_score / temparature);
+    // UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[x].probability, x));
+    // if(node_id == 0) root_pq.push(std::make_pair(UCT_nodes[x].real_score / UCT_nodes[x].real_simulation_times, x));
   } else {  // leaf node
     int Moves[2048];
     int move_count = Expand(chessboard.Board, color, Moves);
@@ -661,6 +665,10 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
             std::make_pair(UCT_nodes[child_id].real_score /
                                UCT_nodes[child_id].real_simulation_times,
                            child_id));
+      // for temperature
+      // UCT_nodes[node_id].pq.push(    
+      //     std::make_pair(UCT_nodes[child_id].probability, child_id));
+      // if(node_id == 0) root_pq.push(std::make_pair(UCT_nodes[child_id].real_score / UCT_nodes[child_id].real_simulation_times, child_id));
     }
   }
 
