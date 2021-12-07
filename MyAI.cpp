@@ -205,8 +205,6 @@ int MyAI::ConvertChessNo(int input) {
 }
 
 void MyAI::initBoardState() {
-  int iPieceCount[14] = {5, 2, 2, 2, 2, 2, 1, 5, 2, 2, 2, 2, 2, 1};
-  memcpy(main_chessboard.CoverChess, iPieceCount, sizeof(int) * 14);
   main_chessboard.Red_Chess_Num = 16;
   main_chessboard.Black_Chess_Num = 16;
   main_chessboard.NoEatFlip = 0;
@@ -317,7 +315,6 @@ void MyAI::MakeMove(ChessBoard* chessboard, const int move, const int chess) {
   int src = move / 100, dst = move % 100;
   if (src == dst) {  // flip
     chessboard->Board[src] = chess;
-    chessboard->CoverChess[chess]--;
     chessboard->NoEatFlip = 0;
   } else {  // move
     if (chessboard->Board[dst] != CHESS_EMPTY) {
@@ -526,16 +523,6 @@ double MyAI::Evaluate(const ChessBoard* chessboard, const int legal_move_count,
         piece_value += values[chessboard->Board[i]];
       } else {
         piece_value -= values[chessboard->Board[i]];
-      }
-    }
-  }
-  // covered
-  for (int i = 0; i < 14; ++i) {
-    if (chessboard->CoverChess[i] > 0) {
-      if (i / 7 == this->Color) {
-        piece_value += chessboard->CoverChess[i] * values[i];
-      } else {
-        piece_value -= chessboard->CoverChess[i] * values[i];
       }
     }
   }

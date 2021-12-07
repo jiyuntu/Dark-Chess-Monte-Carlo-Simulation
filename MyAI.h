@@ -17,7 +17,6 @@
 
 struct ChessBoard{
 	int Board[32];
-	int CoverChess[14];
 	int Red_Chess_Num, Black_Chess_Num;
 	int NoEatFlip;
 	int History[4096];
