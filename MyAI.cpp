@@ -142,66 +142,11 @@ bool MyAI::showboard(const char* data[], char* response) {
 
 // *********************** AI FUNCTION *********************** //
 
-int MyAI::GetFin(char c) {
-  static const char skind[] = {'-', 'K', 'G', 'M', 'R', 'N', 'C', 'P',
-                               'X', 'k', 'g', 'm', 'r', 'n', 'c', 'p'};
-  for (int f = 0; f < 16; f++)
+int MyAI::ConvertChessNo(char c) {
+  const char skind[] = "PCNRMGKpcnrmgk"; 
+  for (int f = 0; f < 14; f++)
     if (c == skind[f]) return f;
-  return -1;
-}
-
-int MyAI::ConvertChessNo(int input) {
-  switch (input) {
-    case 0:
-      return CHESS_EMPTY;
-      break;
-    case 8:
-      return CHESS_COVER;
-      break;
-    case 1:
-      return 6;
-      break;
-    case 2:
-      return 5;
-      break;
-    case 3:
-      return 4;
-      break;
-    case 4:
-      return 3;
-      break;
-    case 5:
-      return 2;
-      break;
-    case 6:
-      return 1;
-      break;
-    case 7:
-      return 0;
-      break;
-    case 9:
-      return 13;
-      break;
-    case 10:
-      return 12;
-      break;
-    case 11:
-      return 11;
-      break;
-    case 12:
-      return 10;
-      break;
-    case 13:
-      return 9;
-      break;
-    case 14:
-      return 8;
-      break;
-    case 15:
-      return 7;
-      break;
-  }
-  return -1;
+  return c == '-' ? CHESS_EMPTY : CHESS_COVER;
 }
 
 void MyAI::initBoardState() {
@@ -338,13 +283,13 @@ void MyAI::MakeMove(ChessBoard* chessboard, const char move[6]) {
   src = ('8' - move[1]) * 4 + (move[0] - 'a');
   if (move[2] == '(') {  // flip
     m = src * 100 + src;
-    printf("# call flip(): flip(%d,%d) = %d\n", src, src, GetFin(move[3]));
+    printf("# call flip(): flip(%d,%d) = %d\n", src, src, move[3]);
   } else {  // move
     dst = ('8' - move[4]) * 4 + (move[3] - 'a');
     m = src * 100 + dst;
     printf("# call move(): move : %d-%d \n", src, dst);
   }
-  MakeMove(chessboard, m, ConvertChessNo(GetFin(move[3])));
+  MakeMove(chessboard, m, ConvertChessNo(move[3]));
   Pirnf_Chessboard();
 }
 
@@ -688,59 +633,8 @@ void MyAI::Pirnf_Chessboard() {
 
 // Print chess
 void MyAI::Pirnf_Chess(int chess_no, char* Result) {
-  // XX -> Empty
-  if (chess_no == CHESS_EMPTY) {
-    strcat(Result, " - ");
-    return;
-  }
-  // OO -> DarkChess
-  else if (chess_no == CHESS_COVER) {
-    strcat(Result, " X ");
-    return;
-  }
-
-  switch (chess_no) {
-    case 0:
-      strcat(Result, " P ");
-      break;
-    case 1:
-      strcat(Result, " C ");
-      break;
-    case 2:
-      strcat(Result, " N ");
-      break;
-    case 3:
-      strcat(Result, " R ");
-      break;
-    case 4:
-      strcat(Result, " M ");
-      break;
-    case 5:
-      strcat(Result, " G ");
-      break;
-    case 6:
-      strcat(Result, " K ");
-      break;
-    case 7:
-      strcat(Result, " p ");
-      break;
-    case 8:
-      strcat(Result, " c ");
-      break;
-    case 9:
-      strcat(Result, " n ");
-      break;
-    case 10:
-      strcat(Result, " r ");
-      break;
-    case 11:
-      strcat(Result, " m ");
-      break;
-    case 12:
-      strcat(Result, " g ");
-      break;
-    case 13:
-      strcat(Result, " k ");
-      break;
-  }
+  const char skind[] = "PCNRMGKpcnrmgk";
+  if(0 <= chess_no && chess_no < 14) sprintf(Result, " %c ", skind[chess_no]);
+  else if(chess_no == CHESS_EMPTY) strcat(Result, " - ");
+  else strcat(Result, " X ");
 }
