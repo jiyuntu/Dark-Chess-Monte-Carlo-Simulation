@@ -21,7 +21,7 @@
 #define POSITION_REPETITION_LIMIT 3
 
 #define SIMULATE_COUNT_PER_CHILD 10
-#define MAX_SIMULATION_COUNT 10000
+#define MAX_SIMULATION_COUNT 20000
 
 MyAI::MyAI(void) {
   pcg32_srandom_r(&this->rng, time(NULL) ^ (intptr_t)&printf,
