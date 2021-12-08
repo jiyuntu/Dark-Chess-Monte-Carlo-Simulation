@@ -222,6 +222,7 @@ void MyAI::initBoardState() {
 
   int iPieceCount[14] = {5, 2, 2, 2, 2, 2, 1, 5, 2, 2, 2, 2, 2, 1};
   memcpy(main_chessboard.CoverChess, iPieceCount, sizeof(int) * 14);
+  memcpy(main_chessboard.num, iPieceCount, sizeof(int) * 14);
   main_chessboard.Red_Chess_Num = 16;
   main_chessboard.Black_Chess_Num = 16;
   main_chessboard.NoEatFlip = 0;
@@ -321,6 +322,7 @@ void MyAI::MakeMove(ChessBoard* chessboard, const int move, const int chess) {
     chessboard->NoEatFlip = 0;
   } else {  // move
     if (chessboard->Board[dst] != CHESS_EMPTY) {
+      chessboard->num[chessboard->Board[dst]]--;
       if (chessboard->Board[dst] / 7 == 0) {  // red
         (chessboard->Red_Chess_Num)--;
       } else {  // black
@@ -581,26 +583,25 @@ double MyAI::calculate_uct(double real_score, int real_simulation_times,
 }
 
 int MyAI::rule_based(ChessBoard* chessboard, int color) {
-  int num[14] = {0};
   for (int i = 0; i < 32; i++) {
     if (chessboard->Board[i] != CHESS_COVER &&
         chessboard->Board[i] != CHESS_EMPTY)
-      num[chessboard->Board[i]]++;
+      chessboard->num[chessboard->Board[i]]++;
   }
   int i = 0;
-  while (i < 7 && num[i] == 0 && num[i + 7] == 0) i++;
-  if (num[i] == num[i + 7]) return -1;
-  if (abs(num[i] - num[i + 7]) >= 2) {
-    if (num[i] > num[i + 7])
+  while (i < 7 && chessboard->num[i] == 0 && chessboard->num[i + 7] == 0) i++;
+  if (chessboard->num[i] == chessboard->num[i + 7]) return -1;
+  if (abs(chessboard->num[i] - chessboard->num[i + 7]) >= 2) {
+    if (chessboard->num[i] > chessboard->num[i + 7])
       return color == 0;
     else
       return color == 1;
   }
   int j = i + 1;
-  while (j < 7 && num[j] == 0 && num[j + 7] == 0) j++;
+  while (j < 7 && chessboard->num[j] == 0 && chessboard->num[j + 7] == 0) j++;
   if (j >= 7) return -1;
-  if (num[i] > num[i + 7] && num[j] >= num[j + 7]) return color == 0;
-  if (num[i + 7] > num[i] && num[j + 7] >= num[j]) return color == 1;
+  if (chessboard->num[i] > chessboard->num[i + 7] && chessboard->num[j] >= chessboard->num[j + 7]) return color == 0;
+  if (chessboard->num[i + 7] > chessboard->num[i] && chessboard->num[j + 7] >= chessboard->num[j]) return color == 1;
   return -1;
 }
 
