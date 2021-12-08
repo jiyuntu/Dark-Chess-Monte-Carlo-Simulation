@@ -142,26 +142,65 @@ bool MyAI::showboard(const char* data[], char* response) {
 
 // *********************** AI FUNCTION *********************** //
 
+#define empty (~chessboard->occupy[0] & ~chessboard->occupy[1])
+
+ul lowbit(ul x) { return x & (~x + 1); }
+ul sigbit(ul x) {
+  x |= x >> 16;
+  x |= x >> 8;
+  x |= x >> 4;
+  x |= x >> 2;
+  x |= x >> 1;
+  return (x >> 1) + 1;
+}
+
 int MyAI::ConvertChessNo(char c) {
-  const char skind[] = "PCNRMGKpcnrmgk"; 
+  const char skind[] = "PCNRMGKpcnrmgk";
   for (int f = 0; f < 14; f++)
     if (c == skind[f]) return f;
   return c == '-' ? CHESS_EMPTY : CHESS_COVER;
 }
 
+ul row_mask[8], column_mask[4], pmoves[32];
+
+void initMask() {
+  for (int i = 0; i < 8; i++) row_mask[i] = 0xf << i;
+  column_mask[0] = 0x11111111;
+  column_mask[1] = 0x22222222;
+  column_mask[2] = 0x44444444;
+  column_mask[3] = 0x88888888;
+
+  for (int i = 0; i < 32; i++) {
+    pmoves[i] = 0;
+    int moves[4] = {i - 1, i + 1, i - 4, i + 4};
+    for (int k = 0; k < 4; k++) {
+      if (moves[k] >= 0 && moves[k] < 32 &&
+          abs(i / 4 - moves[k] / 4) + abs(i % 4 - moves[k] % 4) == 1) {
+        pmoves[i] |= 1lu << moves[k];
+      }
+    }
+  }
+
+  for(int i = 0; i < 32; i++) {
+    fprintf(stderr, "%lx\n", pmoves[i]);
+  }
+}
+
 void MyAI::initBoardState() {
+  initMask();
+
   main_chessboard.Red_Chess_Num = 16;
   main_chessboard.Black_Chess_Num = 16;
   main_chessboard.NoEatFlip = 0;
   main_chessboard.HistoryCount = 0;
 
   // convert to my format
-  int Index = 0;
-  for (int i = 0; i < 8; i++) {
-    for (int j = 0; j < 4; j++) {
-      main_chessboard.Board[Index] = CHESS_COVER;
-      Index++;
-    }
+  main_chessboard.occupy[0] = main_chessboard.occupy[1] = 0;
+  for (int i = 0; i < 14; i++) {
+    main_chessboard.chess[i] = 0;
+  }
+  for (int i = 0; i < 32; i++) {
+    main_chessboard.Board[i] = CHESS_COVER;
   }
   Pirnf_Chessboard();
 }
@@ -172,9 +211,10 @@ void MyAI::generateMove(char move[6]) {
 #else
   gettimeofday(&begin, 0);
 #endif
+
   // Expand
   int Moves[2048];
-  int move_count = Expand(main_chessboard.Board, this->Color, Moves);
+  int move_count = Expand(&main_chessboard, this->Color, Moves);
 
   // Create children
   ChessBoard* Children = new ChessBoard[move_count];
@@ -232,6 +272,7 @@ void MyAI::generateMove(char move[6]) {
     fflush(stderr);
   }
 
+
   // set return value
   int StartPoint = Moves[0] / 100;
   int EndPoint = Moves[0] % 100;
@@ -254,16 +295,21 @@ void MyAI::generateMove(char move[6]) {
   // free
   delete[] Children;
   delete[] Children_Scores;
+
 }
 
-void MyAI::MakeMove(ChessBoard* chessboard, const int move, const int chess) {
-  int src = move / 100, dst = move % 100;
+void MyAI::MakeMove(ChessBoard* chessboard, const int move,
+                    const int chess_no) {
+  ul src = move / 100, dst = move % 100;
   if (src == dst) {  // flip
-    chessboard->Board[src] = chess;
+    chessboard->Board[src] = chess_no;
+    chessboard->chess[chess_no] |= 1lu << src;
+    chessboard->occupy[chess_no / 7] |= 1lu << src;
     chessboard->NoEatFlip = 0;
   } else {  // move
-    if (chessboard->Board[dst] != CHESS_EMPTY) {
-      if (chessboard->Board[dst] / 7 == 0) {  // red
+    int src_no = chessboard->Board[src], dst_no = chessboard->Board[dst];
+    if (dst_no != CHESS_EMPTY) {
+      if (dst_no / 7 == 0) {  // red
         (chessboard->Red_Chess_Num)--;
       } else {  // black
         (chessboard->Black_Chess_Num)--;
@@ -274,6 +320,14 @@ void MyAI::MakeMove(ChessBoard* chessboard, const int move, const int chess) {
     }
     chessboard->Board[dst] = chessboard->Board[src];
     chessboard->Board[src] = CHESS_EMPTY;
+    chessboard->occupy[src_no / 7] =
+        (chessboard->occupy[src_no / 7] ^ (1lu << src)) | (1lu << dst);
+    chessboard->chess[src_no] =
+        (chessboard->chess[src_no] ^ (1lu << src)) | (1lu << dst);
+    if (dst_no >= 0) {
+      chessboard->occupy[dst_no / 7] ^= (1lu << dst);
+      chessboard->chess[dst_no] ^= (1lu << dst);
+    }
   }
   chessboard->History[chessboard->HistoryCount++] = move;
 }
@@ -293,148 +347,104 @@ void MyAI::MakeMove(ChessBoard* chessboard, const char move[6]) {
   Pirnf_Chessboard();
 }
 
-int MyAI::Expand(const int* board, const int color, int* Result) {
+int MyAI::Expand(const ChessBoard* chessboard, const int color, int* Result) {
   int ResultCount = 0;
-  for (int i = 0; i < 32; i++) {
-    if (board[i] >= 0 && board[i] / 7 == color) {
-      // Gun
-      if (board[i] % 7 == 1) {
-        int row = i / 4;
-        int col = i % 4;
-        for (int rowCount = row * 4; rowCount < (row + 1) * 4; rowCount++) {
-          if (Referee(board, i, rowCount, color)) {
-            Result[ResultCount] = i * 100 + rowCount;
-            ResultCount++;
-          }
+  for (int i = 0; i < 14; i++) {
+    if (i / 7 != color) continue;
+    for (ul y = chessboard->chess[i]; y > 0; y -= lowbit(y)) {
+      ul pos = ffsl(y) - 1;
+      if (pos >= 32 || pos < 0) continue;
+      ul move = 0;
+      if (i == 1 || i == 8) {
+        ul row = pos / 4, column = pos % 4, _;
+        ul x;
+        ul left = ((row_mask[row] & ~empty) ^ (1lu << pos)) << (3 - column) >>
+                  (3 - column);
+        for (x = left, _ = 0; x > 0 && _ < 1; x -= sigbit(x), _++) {
         }
-        for (int colCount = col; colCount < 32; colCount += 4) {
-          if (Referee(board, i, colCount, color)) {
-            Result[ResultCount] = i * 100 + colCount;
-            ResultCount++;
-          }
+        if (x > 0) move |= sigbit(x) & chessboard->occupy[color ^ 1];
+        ul right = ((row_mask[row] & ~empty) ^ (1lu << pos)) >>
+                   (4 * row + column) << (4 * row + column);
+        for (x = right, _ = 0; x > 0 && _ < 1; x -= lowbit(x), _++) {
         }
+        if (x > 0) move |= lowbit(x) & chessboard->occupy[color ^ 1];
+        ul up = ((column_mask[column] & ~empty) ^ (1lu << pos))
+                    << ((8 - row) * 4) >>
+                ((8 - row) * 4);
+        for (x = up, _ = 0; x > 0 && _ < 1; x -= sigbit(x), _++) {
+        }
+        if (x > 0) move |= sigbit(x) & chessboard->occupy[color ^ 1];
+        ul down = ((column_mask[column] & ~empty) ^ (1lu << pos)) >>
+                  ((row + 1) * 4) << ((row + 1) * 4);
+        for (x = down, _ = 0; x > 0 && _ < 1; x -= lowbit(x), _++) {
+        }
+        if (x > 0) move |= lowbit(x) & chessboard->occupy[color ^ 1];
+        move = 0;
       } else {
-        int Move[4] = {i - 4, i + 1, i + 4, i - 1};
-        for (int k = 0; k < 4; k++) {
-          if (Move[k] >= 0 && Move[k] < 32 &&
-              Referee(board, i, Move[k], color)) {
-            Result[ResultCount] = i * 100 + Move[k];
-            ResultCount++;
-          }
+        switch (i) {
+          case 0:
+            move = pmoves[pos] &
+                   (empty | chessboard->chess[7] | chessboard->chess[13]);
+            break;
+          case 2:
+            move = pmoves[pos] & (empty | chessboard->chess[7] |
+                                  chessboard->chess[8] | chessboard->chess[9]);
+            break;
+          case 3:
+            move = pmoves[pos] &
+                   (empty | chessboard->chess[7] | chessboard->chess[8] |
+                    chessboard->chess[9] | chessboard->chess[10]);
+            break;
+          case 4:
+            move = pmoves[pos] &
+                   (empty | (chessboard->occupy[1] ^ chessboard->chess[12] ^
+                             chessboard->chess[13]));
+            break;
+          case 5:
+            move = pmoves[pos] &
+                   (empty | (chessboard->occupy[1] ^ chessboard->chess[13]));
+            break;
+          case 6:
+            move = pmoves[pos] &
+                   (empty | (chessboard->occupy[1] ^ chessboard->chess[7]));
+            break;
+          case 7:
+            move = pmoves[pos] &
+                   (empty | chessboard->chess[0] | chessboard->chess[6]);
+            break;
+          case 9:
+            move = pmoves[pos] & (empty | chessboard->chess[0] |
+                                  chessboard->chess[1] | chessboard->chess[2]);
+            break;
+          case 10:
+            move = pmoves[pos] &
+                   (empty | chessboard->chess[0] | chessboard->chess[1] |
+                    chessboard->chess[2] | chessboard->chess[3]);
+            break;
+          case 11:
+            move = pmoves[pos] &
+                   (empty | (chessboard->occupy[0] ^ chessboard->chess[5] ^
+                             chessboard->chess[6]));
+            break;
+          case 12:
+            move = pmoves[pos] &
+                   (empty | (chessboard->occupy[0] ^ chessboard->chess[6]));
+            break;
+          case 13:
+            move = pmoves[pos] &
+                   (empty | (chessboard->occupy[0] ^ chessboard->chess[0]));
+            break;
         }
       }
-    };
+
+      for (ul dst = move; dst > 0; dst -= lowbit(dst)) {
+        int x;
+        if ((x = ffsl(dst) - 1) >= 32) break;
+        Result[ResultCount++] = pos * 100 + x;
+      }
+    }
   }
   return ResultCount;
-}
-
-// Referee
-bool MyAI::Referee(const int* chess, const int from_location_no,
-                   const int to_location_no, const int UserId) {
-  // int MessageNo = 0;
-  bool IsCurrent = true;
-  int from_chess_no = chess[from_location_no];
-  int to_chess_no = chess[to_location_no];
-  int from_row = from_location_no / 4;
-  int to_row = to_location_no / 4;
-  int from_col = from_location_no % 4;
-  int to_col = to_location_no % 4;
-
-  if (from_chess_no < 0 || (to_chess_no < 0 && to_chess_no != CHESS_EMPTY)) {
-    // MessageNo = 1;
-    // strcat(Message,"**no chess can move**");
-    // strcat(Message,"**can't move darkchess**");
-    IsCurrent = false;
-  } else if (from_chess_no >= 0 && from_chess_no / 7 != UserId) {
-    // MessageNo = 2;
-    // strcat(Message,"**not my chess**");
-    IsCurrent = false;
-  } else if ((from_chess_no / 7 == to_chess_no / 7) && to_chess_no >= 0) {
-    // MessageNo = 3;
-    // strcat(Message,"**can't eat my self**");
-    IsCurrent = false;
-  }
-  // check attack
-  else if (to_chess_no == CHESS_EMPTY &&
-           abs(from_row - to_row) + abs(from_col - to_col) == 1)  // legal move
-  {
-    IsCurrent = true;
-  } else if (from_chess_no % 7 == 1)  // judge gun
-  {
-    int row_gap = from_row - to_row;
-    int col_gap = from_col - to_col;
-    int between_Count = 0;
-    // slant
-    if (from_row - to_row == 0 || from_col - to_col == 0) {
-      // row
-      if (row_gap == 0) {
-        for (int i = 1; i < abs(col_gap); i++) {
-          int between_chess;
-          if (col_gap > 0)
-            between_chess = chess[from_location_no - i];
-          else
-            between_chess = chess[from_location_no + i];
-          if (between_chess != CHESS_EMPTY) between_Count++;
-        }
-      }
-      // column
-      else {
-        for (int i = 1; i < abs(row_gap); i++) {
-          int between_chess;
-          if (row_gap > 0)
-            between_chess = chess[from_location_no - 4 * i];
-          else
-            between_chess = chess[from_location_no + 4 * i];
-          if (between_chess != CHESS_EMPTY) between_Count++;
-        }
-      }
-
-      if (between_Count != 1) {
-        // MessageNo = 4;
-        // strcat(Message,"**gun can't eat opp without between one piece**");
-        IsCurrent = false;
-      } else if (to_chess_no == CHESS_EMPTY) {
-        // MessageNo = 5;
-        // strcat(Message,"**gun can't eat opp without between one piece**");
-        IsCurrent = false;
-      }
-    }
-    // slide
-    else {
-      // MessageNo = 6;
-      // strcat(Message,"**cant slide**");
-      IsCurrent = false;
-    }
-  } else  // non gun
-  {
-    // judge pawn or king
-
-    // distance
-    if (abs(from_row - to_row) + abs(from_col - to_col) > 1) {
-      // MessageNo = 7;
-      // strcat(Message,"**cant eat**");
-      IsCurrent = false;
-    }
-    // judge pawn
-    else if (from_chess_no % 7 == 0) {
-      if (to_chess_no % 7 != 0 && to_chess_no % 7 != 6) {
-        // MessageNo = 8;
-        // strcat(Message,"**pawn only eat pawn and king**");
-        IsCurrent = false;
-      }
-    }
-    // judge king
-    else if (from_chess_no % 7 == 6 && to_chess_no % 7 == 0) {
-      // MessageNo = 9;
-      // strcat(Message,"**king can't eat pawn**");
-      IsCurrent = false;
-    } else if (from_chess_no % 7 < to_chess_no % 7) {
-      // MessageNo = 10;
-      // strcat(Message,"**cant eat**");
-      IsCurrent = false;
-    }
-  }
-  return IsCurrent;
 }
 
 // always use my point of view, so use this->Color
@@ -498,12 +508,14 @@ double MyAI::Simulate(ChessBoard chessboard) {
 
   while (true) {
     // Expand
-    moveNum = Expand(chessboard.Board, turn_color, Moves);
+    moveNum = Expand(&chessboard, turn_color, Moves);
+
 
     // Check if is finish
     if (isFinish(&chessboard, moveNum)) {
       return Evaluate(&chessboard, moveNum, turn_color);
     }
+
 
     // distinguish eat-move and pure-move
     int eatMove[128], eatMoveNum = 0;
@@ -634,7 +646,10 @@ void MyAI::Pirnf_Chessboard() {
 // Print chess
 void MyAI::Pirnf_Chess(int chess_no, char* Result) {
   const char skind[] = "PCNRMGKpcnrmgk";
-  if(0 <= chess_no && chess_no < 14) sprintf(Result, " %c ", skind[chess_no]);
-  else if(chess_no == CHESS_EMPTY) strcat(Result, " - ");
-  else strcat(Result, " X ");
+  if (0 <= chess_no && chess_no < 14)
+    sprintf(Result, " %c ", skind[chess_no]);
+  else if (chess_no == CHESS_EMPTY)
+    strcat(Result, " - ");
+  else
+    strcat(Result, " X ");
 }

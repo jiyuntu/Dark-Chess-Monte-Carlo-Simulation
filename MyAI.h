@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <bitset>
+#include <string.h>
 
 #include "pcg_basic.h"
 
@@ -16,11 +18,15 @@
 #define CHESS_EMPTY -2
 #define COMMAND_NUM 18
 
+typedef unsigned long ul;
+
 struct ChessBoard {
   int Board[32];
+  ul chess[14];
+  ul occupy[2];
   int Red_Chess_Num, Black_Chess_Num;
   int NoEatFlip;
-  int History[4096];
+  int History[300];
   int HistoryCount;
 };
 
@@ -83,7 +89,7 @@ class MyAI {
   void MakeMove(ChessBoard* chessboard, const char move[6]);
   bool Referee(const int* board, const int Startoint, const int EndPoint,
                const int color);
-  int Expand(const int* board, const int color, int* Result);
+  int Expand(const ChessBoard* chessboard, const int color, int* Result);
   double Evaluate(const ChessBoard* chessboard, const int legal_move_count,
                   const int color);
   double Simulate(ChessBoard chessboard);
