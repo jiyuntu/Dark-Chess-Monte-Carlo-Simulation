@@ -600,8 +600,12 @@ int MyAI::rule_based(ChessBoard* chessboard, int color) {
   int j = i + 1;
   while (j < 7 && chessboard->num[j] == 0 && chessboard->num[j + 7] == 0) j++;
   if (j >= 7) return -1;
-  if (chessboard->num[i] > chessboard->num[i + 7] && chessboard->num[j] >= chessboard->num[j + 7]) return color == 0;
-  if (chessboard->num[i + 7] > chessboard->num[i] && chessboard->num[j + 7] >= chessboard->num[j]) return color == 1;
+  if (chessboard->num[i] > chessboard->num[i + 7] &&
+      chessboard->num[j] >= chessboard->num[j + 7])
+    return color == 0;
+  if (chessboard->num[i + 7] > chessboard->num[i] &&
+      chessboard->num[j + 7] >= chessboard->num[j])
+    return color == 1;
   return -1;
 }
 
@@ -612,12 +616,6 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
   if (isFinish(&chessboard, 100) || isTimeUp()) {
     return std::make_pair(std::make_pair(0, 0),
                           std::make_pair(0, 0));  // 100: dummy
-  }
-
-  if (chessboard.Red_Chess_Num < 5 || chessboard.Black_Chess_Num < 5) {
-    int r = rule_based(&chessboard, color);
-    if (r != -1)
-      return std::make_pair(std::make_pair(r, 1), std::make_pair(r, 1));
   }
 
   double real_score = 0., RAVE_score = 0.;
@@ -667,6 +665,21 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
       assignUCTNode(UCT_nodes_size++, Moves[i]);
       ChessBoard child_board = chessboard;
       MakeMove(&child_board, Moves[i], 0);
+
+      if (child_board.Red_Chess_Num < 5 || child_board.Black_Chess_Num < 5) {
+        int r = rule_based(&child_board, color ^ 1);
+        if (r != -1) {
+          UCT_nodes[child_id].real_score += 100.;
+          UCT_nodes[child_id].RAVE_score += 100.;
+          real_score -= 100.;
+          RAVE_score -= 100.;
+          UCT_nodes[child_id].real_simulation_times += 100;
+          UCT_nodes[child_id].RAVE_simulation_times += 100;
+          real_simulation_times += 100;
+          RAVE_simulation_times += 100;
+          continue;
+        }
+      }
 
       for (int k = 0; k < SIMULATE_COUNT_PER_CHILD; ++k) {
         std::pair<double, int> s = Simulate(child_board, color ^ 1);
@@ -820,7 +833,8 @@ bool MyAI::isDraw(const ChessBoard* chessboard) {
 }
 
 bool MyAI::isFinish(const ChessBoard* chessboard, int move_count) {
-  return (chessboard->Red_Chess_Num == 0 ||    // terminal node (no chess type)
+  return (isTimeUp() ||
+          chessboard->Red_Chess_Num == 0 ||    // terminal node (no chess type)
           chessboard->Black_Chess_Num == 0 ||  // terminal node (no chess type)
           move_count == 0 ||                   // terminal node (no move type)
           isDraw(chessboard)                   // draw
