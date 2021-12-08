@@ -22,10 +22,7 @@
 
 #define SIMULATE_COUNT_PER_CHILD 10
 
-MyAI::MyAI(void) {
-  pcg32_srandom_r(&this->rng, time(NULL) ^ (intptr_t)&printf,
-                  (intptr_t) & this->Color);
-}
+MyAI::MyAI(void) {}
 
 MyAI::~MyAI(void) {}
 
@@ -663,7 +660,7 @@ bool MyAI::isTimeUp() {
 
 // return range: [0, max)
 uint32_t MyAI::randIndex(uint32_t max) {
-  return pcg32_boundedrand_r(&this->rng, max);
+  return rand() % max;
 }
 
 // Display chess board

@@ -7,7 +7,6 @@
 #include <math.h>
 #include <time.h>
 #include <stdint.h>
-#include "pcg_basic.h"
 
 #define RED 0
 #define BLACK 1
@@ -80,8 +79,6 @@ private:
 #else
 	struct timeval begin;
 #endif
-
-	pcg32_random_t rng;
 
 	// Utils
 	int GetFin(char c);
