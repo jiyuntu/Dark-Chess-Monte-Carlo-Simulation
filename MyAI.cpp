@@ -213,7 +213,8 @@ void MyAI::initBoardState() {
   for (int i = 0; i < 32; i++) {
     int Move[4] = {i - 4, i + 1, i + 4, i - 1};
     for (int k = 0; k < 4; k++) {
-      if (Move[k] >= 0 && Move[k] < 32 && abs(Move[k] / 4 - i / 4) + abs(Move[k] % 4 - i % 4) == 1) {
+      if (Move[k] >= 0 && Move[k] < 32 &&
+          abs(Move[k] / 4 - i / 4) + abs(Move[k] % 4 - i % 4) == 1) {
         graph[i].push_back(Move[k]);
       }
     }
@@ -242,6 +243,8 @@ void MyAI::assignUCTNode(int id, int last_move) {
   UCT_nodes[id].last_move = last_move;
   UCT_nodes[id].real_score = 0.;
   UCT_nodes[id].RAVE_score = 0.;
+  UCT_nodes[id].real_score_square_sum = 0.;
+  UCT_nodes[id].RAVE_score_square_sum = 0.;
   UCT_nodes[id].UCT_score = 0.;
   UCT_nodes[id].real_simulation_times = 0;
   UCT_nodes[id].RAVE_simulation_times = 0;
@@ -266,11 +269,14 @@ void MyAI::generateMove(char move[6]) {
   UCT_nodes_size = 0;
   assignUCTNode(UCT_nodes_size++, 0);
   while (!isTimeUp()) {
-    std::pair<std::pair<double, int>, std::pair<double, int> > ret =
-        nega_Max(this->main_chessboard, 0, this->Color, 0);
-    UCT_nodes[0].real_score += ret.first.first;
+    std::pair<std::pair<std::pair<double, double>, int>,
+              std::pair<std::pair<double, double>, int> >
+        ret = nega_Max(this->main_chessboard, 0, this->Color, 0);
+    UCT_nodes[0].real_score += ret.first.first.first;
+    UCT_nodes[0].real_score_square_sum += ret.first.first.second;
     UCT_nodes[0].real_simulation_times += ret.first.second;
-    UCT_nodes[0].RAVE_score += ret.second.first;
+    UCT_nodes[0].RAVE_score += ret.second.first.first;
+    UCT_nodes[0].RAVE_score_square_sum += ret.second.first.second;
     UCT_nodes[0].RAVE_simulation_times += ret.second.second;
   }
 
@@ -371,7 +377,7 @@ int MyAI::Expand(const int* board, const int color, int* Result) {
           }
         }
       } else {
-        for (int mv: graph[i]) {
+        for (int mv : graph[i]) {
           if (Referee(board, i, mv, color)) {
             Result[ResultCount] = i * 100 + mv;
             ResultCount++;
@@ -553,38 +559,59 @@ double MyAI::Evaluate(const ChessBoard* chessboard, const int legal_move_count,
 
 double MyAI::calculate_uct(double real_score, int real_simulation_times,
                            double RAVE_score, int RAVE_simulation_times,
+                           double real_score_square_sum,
+                           double RAVE_score_square_sum,
                            int parent_real_simulation_times,
                            int parent_RAVE_simulation_times) {
+  if (real_simulation_times == 0) return 0.;
+  double real_variance =
+      real_score_square_sum / real_simulation_times -
+      real_score / real_simulation_times * real_score / real_simulation_times;
+  double real_V =
+      real_variance + parameter_c1 * sqrt(log(parent_real_simulation_times) /
+                                          real_simulation_times);
   double real_UCT =
-      real_simulation_times == 0
-          ? 0.
-          : real_score / real_simulation_times +
-                exploration * sqrt(log(parent_real_simulation_times) /
-                                   real_simulation_times);
-  double RAVE_UCT =
-      RAVE_simulation_times == 0
-          ? 0.
-          : RAVE_score / RAVE_simulation_times +
+      real_score / real_simulation_times +
+      exploration * sqrt(log(parent_real_simulation_times) /
+                         real_simulation_times * fmin(real_V, parameter_c2));
+  double RAVE_variance =
+      RAVE_score_square_sum / RAVE_simulation_times -
+      RAVE_score / RAVE_simulation_times * RAVE_score / RAVE_simulation_times;
+  double RAVE_V = RAVE_variance + parameter_c1 * sqrt(log(parent_RAVE_simulation_times) / RAVE_simulation_times);
+  double RAVE_UCT = RAVE_score / RAVE_simulation_times +
                 exploration * sqrt(log(parent_RAVE_simulation_times) /
-                                   RAVE_simulation_times);
+                                   RAVE_simulation_times * fmin(RAVE_V, parameter_c2));
 
+<<<<<<< HEAD
   double beta = RAVE_simulation_times /
                 (real_simulation_times + RAVE_simulation_times +
                  4 * RAVE_parameter * RAVE_parameter * real_simulation_times *
                      RAVE_simulation_times);
+=======
+  // double beta = RAVE_simulation_times /
+  //               (real_simulation_times + RAVE_simulation_times +
+  //                4 * RAVE_parameter * RAVE_parameter * real_simulation_times
+  //                *
+  //                    RAVE_simulation_times);
+
+  double beta = 0.;
+>>>>>>> 7fb4843 (revised UCB)
 
   return (1 - beta) * real_UCT + beta * RAVE_UCT;
 }
 
-std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
-    ChessBoard chessboard, int node_id, int color, int depth) {
-  // return < <real score, real simulation times>, <RAVE score, RAVE simulation
-  // times> >
+std::pair<std::pair<std::pair<double, double>, int>,
+          std::pair<std::pair<double, double>, int> >
+MyAI::nega_Max(ChessBoard chessboard, int node_id, int color, int depth) {
+  // return < < <real score, real_score_square_sum>, real simulation times>, <
+  // <RAVE score, RAVE score square sum>, RAVE simulation times> >
   if (isFinish(&chessboard, 100) || isTimeUp()) {
-    return std::make_pair(std::make_pair(0, 0),
-                          std::make_pair(0, 0));  // 100: dummy
+    return std::make_pair(
+        std::make_pair(std::make_pair(0, 0), 0),
+        std::make_pair(std::make_pair(0, 0), 0));  // 100: dummy
   }
   double real_score = 0., RAVE_score = 0.;
+  double real_score_square_sum = 0., RAVE_score_square_sum = 0.;
   int real_simulation_times = 0, RAVE_simulation_times = 0;
   if (UCT_nodes[node_id].pq.size() != 0) {  // not leaf node
     int x;
@@ -601,21 +628,27 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
     }
     UCTNode next_node = UCT_nodes[x];
     MakeMove(&chessboard, next_node.last_move, 0);
-    std::pair<std::pair<double, int>, std::pair<double, int> > ret =
-        nega_Max(chessboard, x, color ^ 1, depth + 1);
+    std::pair<std::pair<std::pair<double, double>, int>,
+              std::pair<std::pair<double, double>, int> >
+        ret = nega_Max(chessboard, x, color ^ 1, depth + 1);
 
-    real_score -= ret.first.first;
+    real_score -= ret.first.first.first;
     real_simulation_times += ret.first.second;
-    RAVE_score -= ret.second.first;
+    real_score_square_sum += ret.first.first.second;
+    RAVE_score -= ret.second.first.first;
     RAVE_simulation_times += ret.second.second;
+    RAVE_score_square_sum += ret.second.first.second;
 
-    UCT_nodes[x].real_score += ret.first.first;
+    UCT_nodes[x].real_score += ret.first.first.first;
     UCT_nodes[x].real_simulation_times += ret.first.second;
-    UCT_nodes[x].RAVE_score += ret.second.first;
+    UCT_nodes[x].real_score_square_sum += ret.first.first.second;
+    UCT_nodes[x].RAVE_score += ret.second.first.first;
     UCT_nodes[x].RAVE_simulation_times += ret.second.second;
+    UCT_nodes[x].RAVE_score_square_sum += ret.second.first.second;
     UCT_nodes[x].UCT_score = calculate_uct(
         UCT_nodes[x].real_score, UCT_nodes[x].real_simulation_times,
         UCT_nodes[x].RAVE_score, UCT_nodes[x].RAVE_simulation_times,
+        UCT_nodes[x].real_score_square_sum, UCT_nodes[x].RAVE_score_square_sum,
         UCT_nodes[node_id].real_simulation_times + real_simulation_times,
         UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
     UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[x].UCT_score, x));
@@ -635,9 +668,16 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
       for (int k = 0; k < SIMULATE_COUNT_PER_CHILD; ++k) {
         std::pair<double, int> s = Simulate(child_board, color ^ 1);
         UCT_nodes[child_id].real_score += s.first / s.second;
+        UCT_nodes[child_id].real_score_square_sum +=
+            (s.first / s.second) * (s.first / s.second);
         UCT_nodes[child_id].RAVE_score += s.first;
+        UCT_nodes[child_id].RAVE_score_square_sum +=
+            s.second * (s.first / s.second) * (s.first / s.second);
         real_score -= s.first / s.second;
+        real_score_square_sum += (s.first / s.second) * (s.first / s.second);
         RAVE_score -= s.first;
+        RAVE_score_square_sum +=
+            s.second * (s.first / s.second) * (s.first / s.second);
         UCT_nodes[child_id].real_simulation_times += 1;
         UCT_nodes[child_id].RAVE_simulation_times += s.second;
         real_simulation_times++;
@@ -652,6 +692,8 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
           UCT_nodes[child_id].real_simulation_times,
           UCT_nodes[child_id].RAVE_score,
           UCT_nodes[child_id].RAVE_simulation_times,
+          UCT_nodes[child_id].real_score_square_sum,
+          UCT_nodes[child_id].RAVE_score_square_sum,
           UCT_nodes[node_id].real_simulation_times + real_simulation_times,
           UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
       UCT_nodes[node_id].pq.push(
@@ -664,8 +706,11 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
     }
   }
 
-  return std::make_pair(std::make_pair(real_score, real_simulation_times),
-                        std::make_pair(RAVE_score, RAVE_simulation_times));
+  return std::make_pair(
+      std::make_pair(std::make_pair(real_score, real_score_square_sum),
+                     real_simulation_times),
+      std::make_pair(std::make_pair(RAVE_score, RAVE_score_square_sum),
+                     RAVE_simulation_times));
 }
 
 int RAVE_moves[1024][128];
