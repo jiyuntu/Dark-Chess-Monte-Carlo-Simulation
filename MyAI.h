@@ -96,7 +96,7 @@ class MyAI {
   ChessBoard main_chessboard;
   const double eps = 1e-6;
   const double exploration = -0.25;
-  const double parameter_c1 = 0.1, parameter_c2 = 100;
+  const double parameter_c1 = sqrt(2), parameter_c2 = 0.25;
   const double RAVE_parameter = 2.;
 
 #ifdef WINDOWS
