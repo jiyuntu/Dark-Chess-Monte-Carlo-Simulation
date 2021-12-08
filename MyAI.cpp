@@ -568,10 +568,12 @@ double MyAI::calculate_uct(double real_score, int real_simulation_times,
                 exploration * sqrt(log(parent_RAVE_simulation_times) /
                                    RAVE_simulation_times);
 
-  double beta = RAVE_simulation_times /
-                (real_simulation_times + RAVE_simulation_times +
-                 4 * RAVE_parameter * RAVE_parameter * real_simulation_times *
-                     RAVE_simulation_times);
+  // double beta = RAVE_simulation_times /
+  //               (real_simulation_times + RAVE_simulation_times +
+  //                4 * RAVE_parameter * RAVE_parameter * real_simulation_times *
+  //                    RAVE_simulation_times);
+
+  double beta = 0.;
 
   return (1 - beta) * real_UCT + beta * RAVE_UCT;
 }
