@@ -161,10 +161,17 @@ int MyAI::ConvertChessNo(char c) {
   return c == '-' ? CHESS_EMPTY : CHESS_COVER;
 }
 
-ul row_mask[8], column_mask[4], pmoves[32];
+ul row_mask[8], column_mask[4], pmoves[32], bitsmask32;
 
 void initMask() {
-  for (int i = 0; i < 8; i++) row_mask[i] = 0xf << i;
+  row_mask[0] = 0xf;
+  row_mask[1] = 0xf0;
+  row_mask[2] = 0xf00;
+  row_mask[3] = 0xf000;
+  row_mask[4] = 0xf0000;
+  row_mask[5] = 0xf00000;
+  row_mask[6] = 0xf000000;
+  row_mask[7] = 0xf0000000;
   column_mask[0] = 0x11111111;
   column_mask[1] = 0x22222222;
   column_mask[2] = 0x44444444;
@@ -181,9 +188,7 @@ void initMask() {
     }
   }
 
-  for(int i = 0; i < 32; i++) {
-    fprintf(stderr, "%lx\n", pmoves[i]);
-  }
+  bitsmask32 = 0xffffffff;
 }
 
 void MyAI::initBoardState() {
@@ -272,7 +277,6 @@ void MyAI::generateMove(char move[6]) {
     fflush(stderr);
   }
 
-
   // set return value
   int StartPoint = Moves[0] / 100;
   int EndPoint = Moves[0] % 100;
@@ -295,7 +299,6 @@ void MyAI::generateMove(char move[6]) {
   // free
   delete[] Children;
   delete[] Children_Scores;
-
 }
 
 void MyAI::MakeMove(ChessBoard* chessboard, const int move,
@@ -355,85 +358,100 @@ int MyAI::Expand(const ChessBoard* chessboard, const int color, int* Result) {
       ul pos = ffsl(y) - 1;
       if (pos >= 32 || pos < 0) continue;
       ul move = 0;
+      switch (i) {
+        case 0:
+          move = pmoves[pos] &
+                 (empty | chessboard->chess[7] | chessboard->chess[13]);
+          break;
+        case 1:
+          move = pmoves[pos] & empty;
+        case 2:
+          move = pmoves[pos] & (empty | chessboard->chess[7] |
+                                chessboard->chess[8] | chessboard->chess[9]);
+          break;
+        case 3:
+          move = pmoves[pos] &
+                 (empty | chessboard->chess[7] | chessboard->chess[8] |
+                  chessboard->chess[9] | chessboard->chess[10]);
+          break;
+        case 4:
+          move = pmoves[pos] &
+                 (empty | (chessboard->occupy[1] ^ chessboard->chess[12] ^
+                           chessboard->chess[13]));
+          break;
+        case 5:
+          move = pmoves[pos] &
+                 (empty | (chessboard->occupy[1] ^ chessboard->chess[13]));
+          break;
+        case 6:
+          move = pmoves[pos] &
+                 (empty | (chessboard->occupy[1] ^ chessboard->chess[7]));
+          break;
+        case 7:
+          move = pmoves[pos] &
+                 (empty | chessboard->chess[0] | chessboard->chess[6]);
+          break;
+        case 8:
+          move = pmoves[pos] & empty;
+        case 9:
+          move = pmoves[pos] & (empty | chessboard->chess[0] |
+                                chessboard->chess[1] | chessboard->chess[2]);
+          break;
+        case 10:
+          move = pmoves[pos] &
+                 (empty | chessboard->chess[0] | chessboard->chess[1] |
+                  chessboard->chess[2] | chessboard->chess[3]);
+          break;
+        case 11:
+          move = pmoves[pos] &
+                 (empty | (chessboard->occupy[0] ^ chessboard->chess[5] ^
+                           chessboard->chess[6]));
+          break;
+        case 12:
+          move = pmoves[pos] &
+                 (empty | (chessboard->occupy[0] ^ chessboard->chess[6]));
+          break;
+        case 13:
+          move = pmoves[pos] &
+                 (empty | (chessboard->occupy[0] ^ chessboard->chess[0]));
+          break;
+      }
+
       if (i == 1 || i == 8) {
         ul row = pos / 4, column = pos % 4, _;
         ul x;
-        ul left = ((row_mask[row] & ~empty) ^ (1lu << pos)) << (3 - column) >>
-                  (3 - column);
+        ul left = ((row_mask[row] & ~empty) ^ (1lu << pos))
+                      << (4 * (7 - row) + 4 - column) &
+                  bitsmask32;
+        left >>= (4 * (7 - row) + 4 - column);
         for (x = left, _ = 0; x > 0 && _ < 1; x -= sigbit(x), _++) {
         }
-        if (x > 0) move |= sigbit(x) & chessboard->occupy[color ^ 1];
-        ul right = ((row_mask[row] & ~empty) ^ (1lu << pos)) >>
-                   (4 * row + column) << (4 * row + column);
+        if (x > 0) {
+          move |= sigbit(x) & chessboard->occupy[color ^ 1];
+        }
+        ul right =
+            (((row_mask[row] & ~empty) ^ (1lu << pos)) >> (4 * row + column) & bitsmask32)
+            << (4 * row + column);
         for (x = right, _ = 0; x > 0 && _ < 1; x -= lowbit(x), _++) {
         }
-        if (x > 0) move |= lowbit(x) & chessboard->occupy[color ^ 1];
+        if (x > 0) {
+          move |= lowbit(x) & chessboard->occupy[color ^ 1];
+        }
         ul up = ((column_mask[column] & ~empty) ^ (1lu << pos))
-                    << ((8 - row) * 4) >>
-                ((8 - row) * 4);
+                    << ((7 - row) * 4) &
+                bitsmask32;
+        up >>= ((7 - row) * 4);
         for (x = up, _ = 0; x > 0 && _ < 1; x -= sigbit(x), _++) {
         }
-        if (x > 0) move |= sigbit(x) & chessboard->occupy[color ^ 1];
-        ul down = ((column_mask[column] & ~empty) ^ (1lu << pos)) >>
-                  ((row + 1) * 4) << ((row + 1) * 4);
+        if (x > 0) {
+          move |= sigbit(x) & chessboard->occupy[color ^ 1];
+        }
+        ul down = (((column_mask[column] & ~empty) ^ (1lu << pos)) >> (row * 4) & bitsmask32)
+                  << (row * 4);
         for (x = down, _ = 0; x > 0 && _ < 1; x -= lowbit(x), _++) {
         }
-        if (x > 0) move |= lowbit(x) & chessboard->occupy[color ^ 1];
-        move = 0;
-      } else {
-        switch (i) {
-          case 0:
-            move = pmoves[pos] &
-                   (empty | chessboard->chess[7] | chessboard->chess[13]);
-            break;
-          case 2:
-            move = pmoves[pos] & (empty | chessboard->chess[7] |
-                                  chessboard->chess[8] | chessboard->chess[9]);
-            break;
-          case 3:
-            move = pmoves[pos] &
-                   (empty | chessboard->chess[7] | chessboard->chess[8] |
-                    chessboard->chess[9] | chessboard->chess[10]);
-            break;
-          case 4:
-            move = pmoves[pos] &
-                   (empty | (chessboard->occupy[1] ^ chessboard->chess[12] ^
-                             chessboard->chess[13]));
-            break;
-          case 5:
-            move = pmoves[pos] &
-                   (empty | (chessboard->occupy[1] ^ chessboard->chess[13]));
-            break;
-          case 6:
-            move = pmoves[pos] &
-                   (empty | (chessboard->occupy[1] ^ chessboard->chess[7]));
-            break;
-          case 7:
-            move = pmoves[pos] &
-                   (empty | chessboard->chess[0] | chessboard->chess[6]);
-            break;
-          case 9:
-            move = pmoves[pos] & (empty | chessboard->chess[0] |
-                                  chessboard->chess[1] | chessboard->chess[2]);
-            break;
-          case 10:
-            move = pmoves[pos] &
-                   (empty | chessboard->chess[0] | chessboard->chess[1] |
-                    chessboard->chess[2] | chessboard->chess[3]);
-            break;
-          case 11:
-            move = pmoves[pos] &
-                   (empty | (chessboard->occupy[0] ^ chessboard->chess[5] ^
-                             chessboard->chess[6]));
-            break;
-          case 12:
-            move = pmoves[pos] &
-                   (empty | (chessboard->occupy[0] ^ chessboard->chess[6]));
-            break;
-          case 13:
-            move = pmoves[pos] &
-                   (empty | (chessboard->occupy[0] ^ chessboard->chess[0]));
-            break;
+        if (x > 0) {
+          move |= lowbit(x) & chessboard->occupy[color ^ 1];
         }
       }
 
@@ -510,12 +528,10 @@ double MyAI::Simulate(ChessBoard chessboard) {
     // Expand
     moveNum = Expand(&chessboard, turn_color, Moves);
 
-
     // Check if is finish
     if (isFinish(&chessboard, moveNum)) {
       return Evaluate(&chessboard, moveNum, turn_color);
     }
-
 
     // distinguish eat-move and pure-move
     int eatMove[128], eatMoveNum = 0;

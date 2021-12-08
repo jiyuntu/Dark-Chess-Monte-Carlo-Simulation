@@ -7,8 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
 #include <bitset>
-#include <string.h>
 
 #include "pcg_basic.h"
 
@@ -87,14 +87,16 @@ class MyAI {
   void generateMove(char move[6]);
   void MakeMove(ChessBoard* chessboard, const int move, const int chess);
   void MakeMove(ChessBoard* chessboard, const char move[6]);
-  bool Referee(const int* board, const int Startoint, const int EndPoint,
-               const int color);
   int Expand(const ChessBoard* chessboard, const int color, int* Result);
   double Evaluate(const ChessBoard* chessboard, const int legal_move_count,
                   const int color);
   double Simulate(ChessBoard chessboard);
   bool isDraw(const ChessBoard* chessboard);
   bool isFinish(const ChessBoard* chessboard, int move_count);
+
+  int Expand2(const int* board, const int color, int* Result);
+  bool Referee(const int* chess, const int from_location_no,
+               const int to_location_no, const int UserId);
 
   // Display
   void Pirnf_Chess(int chess_no, char* Result);
