@@ -21,7 +21,7 @@
 #define POSITION_REPETITION_LIMIT 3
 
 #define SIMULATE_COUNT_PER_CHILD 10
-#define MAX_SIMULATION_COUNT 10000
+#define MAX_SIMULATION_COUNT 20000
 
 MyAI::MyAI(void) {
   pcg32_srandom_r(&this->rng, time(NULL) ^ (intptr_t)&printf,
@@ -213,7 +213,8 @@ void MyAI::initBoardState() {
   for (int i = 0; i < 32; i++) {
     int Move[4] = {i - 4, i + 1, i + 4, i - 1};
     for (int k = 0; k < 4; k++) {
-      if (Move[k] >= 0 && Move[k] < 32 && abs(Move[k] / 4 - i / 4) + abs(Move[k] % 4 - i % 4) == 1) {
+      if (Move[k] >= 0 && Move[k] < 32 &&
+          abs(Move[k] / 4 - i / 4) + abs(Move[k] % 4 - i % 4) == 1) {
         graph[i].push_back(Move[k]);
       }
     }
@@ -371,7 +372,7 @@ int MyAI::Expand(const int* board, const int color, int* Result) {
           }
         }
       } else {
-        for (int mv: graph[i]) {
+        for (int mv : graph[i]) {
           if (Referee(board, i, mv, color)) {
             Result[ResultCount] = i * 100 + mv;
             ResultCount++;
@@ -570,12 +571,37 @@ double MyAI::calculate_uct(double real_score, int real_simulation_times,
 
   // double beta = RAVE_simulation_times /
   //               (real_simulation_times + RAVE_simulation_times +
-  //                4 * RAVE_parameter * RAVE_parameter * real_simulation_times *
+  //                4 * RAVE_parameter * RAVE_parameter * real_simulation_times
+  //                *
   //                    RAVE_simulation_times);
 
   double beta = 0.;
 
   return (1 - beta) * real_UCT + beta * RAVE_UCT;
+}
+
+int MyAI::rule_based(ChessBoard* chessboard, int color) {
+  int num[14] = {0};
+  for (int i = 0; i < 32; i++) {
+    if (chessboard->Board[i] != CHESS_COVER &&
+        chessboard->Board[i] != CHESS_EMPTY)
+      num[chessboard->Board[i]]++;
+  }
+  int i = 0;
+  while (i < 7 && num[i] == 0 && num[i + 7] == 0) i++;
+  if (num[i] == num[i + 7]) return -1;
+  if (abs(num[i] - num[i + 7]) >= 2) {
+    if (num[i] > num[i + 7])
+      return color == 0;
+    else
+      return color == 1;
+  }
+  int j = i + 1;
+  while (j < 7 && num[j] == 0 && num[j + 7] == 0) j++;
+  if (j >= 7) return -1;
+  if (num[i] > num[i + 7] && num[j] >= num[j + 7]) return color == 0;
+  if (num[i + 7] > num[i] && num[j + 7] >= num[j]) return color == 1;
+  return -1;
 }
 
 std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
@@ -586,6 +612,13 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
     return std::make_pair(std::make_pair(0, 0),
                           std::make_pair(0, 0));  // 100: dummy
   }
+
+  if (chessboard.Red_Chess_Num < 5 || chessboard.Black_Chess_Num < 5) {
+    int r = rule_based(&chessboard, color);
+    if (r != -1)
+      return std::make_pair(std::make_pair(r, 1), std::make_pair(r, 1));
+  }
+
   double real_score = 0., RAVE_score = 0.;
   int real_simulation_times = 0, RAVE_simulation_times = 0;
   if (UCT_nodes[node_id].pq.size() != 0) {  // not leaf node

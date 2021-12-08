@@ -127,6 +127,7 @@ class MyAI {
                        double RAVE_score, int RAVE_simulation_times,
                        int parent_real_simulation_times,
                        int parent_RAVE_simulation_times);
+  int rule_based(ChessBoard* chessboard, int color);
 
   // Display
   void Pirnf_Chess(int chess_no, char* Result);
