@@ -669,14 +669,14 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
       if (child_board.Red_Chess_Num < 5 || child_board.Black_Chess_Num < 5) {
         int r = rule_based(&child_board, color ^ 1);
         if (r != -1) {
-          UCT_nodes[child_id].real_score += 100.;
-          UCT_nodes[child_id].RAVE_score += 100.;
-          real_score -= 100.;
-          RAVE_score -= 100.;
-          UCT_nodes[child_id].real_simulation_times += 100;
-          UCT_nodes[child_id].RAVE_simulation_times += 100;
-          real_simulation_times += 100;
-          RAVE_simulation_times += 100;
+          UCT_nodes[child_id].real_score += 10.;
+          UCT_nodes[child_id].RAVE_score += 10.;
+          real_score -= 10.;
+          RAVE_score -= 10.;
+          UCT_nodes[child_id].real_simulation_times += 10;
+          UCT_nodes[child_id].RAVE_simulation_times += 10;
+          real_simulation_times += 10;
+          RAVE_simulation_times += 10;
           continue;
         }
       }
