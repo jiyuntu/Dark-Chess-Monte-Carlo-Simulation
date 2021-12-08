@@ -666,21 +666,6 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
       ChessBoard child_board = chessboard;
       MakeMove(&child_board, Moves[i], 0);
 
-      if (child_board.Red_Chess_Num < 5 || child_board.Black_Chess_Num < 5) {
-        int r = rule_based(&child_board, color ^ 1);
-        if (r != -1) {
-          UCT_nodes[child_id].real_score += 10.;
-          UCT_nodes[child_id].RAVE_score += 10.;
-          real_score -= 10.;
-          RAVE_score -= 10.;
-          UCT_nodes[child_id].real_simulation_times += 10;
-          UCT_nodes[child_id].RAVE_simulation_times += 10;
-          real_simulation_times += 10;
-          RAVE_simulation_times += 10;
-          continue;
-        }
-      }
-
       for (int k = 0; k < SIMULATE_COUNT_PER_CHILD; ++k) {
         std::pair<double, int> s = Simulate(child_board, color ^ 1);
         UCT_nodes[child_id].real_score += s.first / s.second;
@@ -725,6 +710,13 @@ std::pair<double, int> MyAI::Simulate(ChessBoard chessboard, int color) {
   int moves[1024], chess[1024];
   int turn_color = color;
   double score;
+  
+  if (chessboard.Red_Chess_Num < 5 || chessboard.Black_Chess_Num < 5) {
+    int r = rule_based(&chessboard, color);
+    if (r != -1){
+      return std::make_pair(1.0 * r, 1);
+    }
+  }
 
   int simulate_depth = 0;
   for (;; simulate_depth++) {
