@@ -252,10 +252,8 @@ void MyAI::assignUCTNode(int id, int last_move) {
 UCTNode UCT_nodes[MAX_NODE];
 int UCT_nodes_size;
 
-std::priority_queue<std::pair<double, int>,
-                    std::vector<std::pair<double, int> >,
-                    std::greater<std::pair<double, int> > >
-    root_pq;
+ChessBoard gen_child_board[1024];
+int gen_child_id[1024];
 
 void MyAI::generateMove(char move[6]) {
 #ifdef WINDOWS
@@ -264,30 +262,42 @@ void MyAI::generateMove(char move[6]) {
   gettimeofday(&begin, 0);
 #endif
 
-  while (!root_pq.empty()) root_pq.pop();
+  int move_count = 0, Moves[1024];
+  move_count = Expand(this->main_chessboard.Board, this->Color, Moves);
+
   UCT_nodes_size = 0;
-  assignUCTNode(UCT_nodes_size++, 0);
-  while (!isTimeUp()) {
-    std::pair<std::pair<double, int>, std::pair<double, int> > ret =
-        nega_Max(this->main_chessboard, 0, this->Color, 0);
-    UCT_nodes[0].real_score += ret.first.first;
-    UCT_nodes[0].real_simulation_times += ret.first.second;
-    UCT_nodes[0].RAVE_score += ret.second.first;
-    UCT_nodes[0].RAVE_simulation_times += ret.second.second;
+  for (int i = 0; i < move_count; i++) {
+    gen_child_board[i] = this->main_chessboard;
+    MakeMove(&gen_child_board[i], Moves[i], 0);
+    gen_child_id[i] = UCT_nodes_size;
+    assignUCTNode(UCT_nodes_size++, 0);
   }
 
-  double s;
-  int id = 0;
-  while (!root_pq.empty()) {
-    s = root_pq.top().first;
-    id = root_pq.top().second;
-    if (abs(s - UCT_nodes[id].real_score /
-                    UCT_nodes[id].real_simulation_times) > eps)
-      root_pq.pop();
-    else
-      break;
+  while (!isTimeUp()) {
+    for (int i = 0; i < move_count; i++) {
+      for (int j = 0; j < SIMULATE_COUNT_PER_CHILD; j++) {
+        std::pair<std::pair<double, int>, std::pair<double, int> > ret =
+            nega_Max(gen_child_board[i], gen_child_id[i], this->Color ^ 1, 1);
+        UCT_nodes[gen_child_id[i]].real_score += ret.first.first;
+        UCT_nodes[gen_child_id[i]].real_simulation_times += ret.first.second;
+        UCT_nodes[gen_child_id[i]].RAVE_score += ret.second.first;
+        UCT_nodes[gen_child_id[i]].RAVE_simulation_times += ret.second.second;
+      }
+    }
   }
-  int mv = UCT_nodes[id].last_move;
+
+  double mn = 100.;
+  int id = 0;
+  for (int i = 0; i < move_count; i++) {
+    if (UCT_nodes[gen_child_id[i]].real_score /
+            UCT_nodes[gen_child_id[i]].real_simulation_times <
+        mn) {
+      id = i;
+      mn = UCT_nodes[gen_child_id[i]].real_score /
+           UCT_nodes[gen_child_id[i]].real_simulation_times;
+    }
+  }
+  int mv = Moves[id];
 
   // log
   int tmp_start = mv / 100;
@@ -296,7 +306,9 @@ void MyAI::generateMove(char move[6]) {
   sprintf(move, "%c%c-%c%c", 'a' + (tmp_start % 4), '1' + (7 - tmp_start / 4),
           'a' + (tmp_end % 4), '1' + (7 - tmp_end / 4));
   fprintf(stderr, "Move: %s, Score: %+5lf, Sim_Count: %7d\n", move,
-          UCT_nodes[id].UCT_score, UCT_nodes[id].real_simulation_times);
+          UCT_nodes[gen_child_id[id]].real_score /
+              UCT_nodes[gen_child_id[id]].real_simulation_times,
+          UCT_nodes[gen_child_id[id]].real_simulation_times);
   fflush(stderr);
 
   // set return value
@@ -587,19 +599,39 @@ int MyAI::rule_based(ChessBoard* chessboard, int color) {
   }
   int i = 0;
   while (i < 7 && chessboard->num[i] == 0 && chessboard->num[i + 7] == 0) i++;
-  if (chessboard->num[i] == chessboard->num[i + 7]) return -1;
+  if (chessboard->num[i] == chessboard->num[i + 7]) return 0;
   if (abs(chessboard->num[i] - chessboard->num[i + 7]) >= 2) {
     if (chessboard->num[i] > chessboard->num[i + 7])
-      return color == 0;
+      return color == 0 ? 1 : -1;
     else
-      return color == 1;
+      return color == 1 ? 1 : -1;
+  }
+  if (i % 7 == 6) {
+    if ((chessboard->num[6] && chessboard->num[7]) ||
+        (chessboard->num[13] && chessboard->num[0])) {
+      i++;
+      while (i < 7 && chessboard->num[i] == 0 && chessboard->num[i + 7] == 0)
+        i++;
+      if (i >= 7) return 0;
+      if (chessboard->num[i] == chessboard->num[i + 7]) return 0;
+      if (abs(chessboard->num[i] - chessboard->num[i + 7]) >= 2) {
+        if (chessboard->num[i] > chessboard->num[i + 7])
+          return color == 0 ? 1 : -1;
+        else
+          return color == 1 ? 1 : -1;
+      }
+    }
   }
   int j = i + 1;
   while (j < 7 && chessboard->num[j] == 0 && chessboard->num[j + 7] == 0) j++;
-  if (j >= 7) return -1;
-  if (chessboard->num[i] > chessboard->num[i + 7] && chessboard->num[j] >= chessboard->num[j + 7]) return color == 0;
-  if (chessboard->num[i + 7] > chessboard->num[i] && chessboard->num[j + 7] >= chessboard->num[j]) return color == 1;
-  return -1;
+  if (j >= 7) return 0;
+  if (chessboard->num[i] > chessboard->num[i + 7] &&
+      chessboard->num[j] >= chessboard->num[j + 7])
+    return color == 0 ? 1 : -1;
+  if (chessboard->num[i + 7] > chessboard->num[i] &&
+      chessboard->num[j + 7] >= chessboard->num[j])
+    return color == 1 ? 1 : -1;
+  return 0;
 }
 
 std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
@@ -613,8 +645,9 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
 
   if (chessboard.Red_Chess_Num < 5 || chessboard.Black_Chess_Num < 5) {
     int r = rule_based(&chessboard, color);
-    if (r != -1)
-      return std::make_pair(std::make_pair(r, 1), std::make_pair(r, 1));
+    if (r != 0)
+      return std::make_pair(std::make_pair(r * 100., 100),
+                            std::make_pair(r * 100., 100));
   }
 
   double real_score = 0., RAVE_score = 0.;
@@ -652,9 +685,6 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
         UCT_nodes[node_id].real_simulation_times + real_simulation_times,
         UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
     UCT_nodes[node_id].pq.push(std::make_pair(UCT_nodes[x].UCT_score, x));
-    if (node_id == 0)
-      root_pq.push(std::make_pair(
-          UCT_nodes[x].real_score / UCT_nodes[x].real_simulation_times, x));
   } else {  // leaf node
     int Moves[2048];
     int move_count = Expand(chessboard.Board, color, Moves);
@@ -689,11 +719,6 @@ std::pair<std::pair<double, int>, std::pair<double, int> > MyAI::nega_Max(
           UCT_nodes[node_id].RAVE_simulation_times + RAVE_simulation_times);
       UCT_nodes[node_id].pq.push(
           std::make_pair(UCT_nodes[child_id].UCT_score, child_id));
-      if (node_id == 0)
-        root_pq.push(
-            std::make_pair(UCT_nodes[child_id].real_score /
-                               UCT_nodes[child_id].real_simulation_times,
-                           child_id));
     }
   }
 
@@ -757,8 +782,8 @@ std::pair<double, int> MyAI::Simulate(ChessBoard chessboard, int color) {
 
   int cnt = 1;
   for (int rev_depth = simulate_depth - 1; rev_depth >= 0; rev_depth--) {
-    play[moves[rev_depth] / 100][moves[rev_depth] % 100]
-        [chess[rev_depth] / 100][chess[rev_depth] % 100] = true;
+    play[moves[rev_depth] / 100][moves[rev_depth] % 100][chess[rev_depth] / 100]
+        [chess[rev_depth] % 100] = true;
     for (int i = 0; i < moveNum[rev_depth]; i++) {
       int mov = RAVE_moves[rev_depth][i];
       if (mov == moves[rev_depth]) continue;
