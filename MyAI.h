@@ -99,12 +99,17 @@ class MyAI {
   const double exploration = -0.25;
   const double parameter_c1 = sqrt(2), parameter_c2 = 0.25;
 <<<<<<< HEAD
+<<<<<<< HEAD
   const double RAVE_parameter = 2.;
   const double temparature = 0.05;
 =======
   const double RAVE_parameter = 0.05;
   const double temparature = 0.05;
 >>>>>>> 9b2675f (utilize temperature)
+=======
+  const double RAVE_parameter = 0.05;
+  const double temparature = 0.05;
+>>>>>>> 9b2675f100c7a34a405769eb2dae3b8989eb0cd5
 
 #ifdef WINDOWS
   clock_t begin;
