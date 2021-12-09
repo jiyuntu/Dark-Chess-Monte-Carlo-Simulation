@@ -568,12 +568,10 @@ double MyAI::calculate_uct(double real_score, int real_simulation_times,
                 exploration * sqrt(log(parent_RAVE_simulation_times) /
                                    RAVE_simulation_times);
 
-  // double beta = RAVE_simulation_times /
-  //               (real_simulation_times + RAVE_simulation_times +
-  //                4 * RAVE_parameter * RAVE_parameter * real_simulation_times *
-  //                    RAVE_simulation_times);
-
-  double beta = 0.;
+  double beta = RAVE_simulation_times /
+                (real_simulation_times + RAVE_simulation_times +
+                 4 * RAVE_parameter * RAVE_parameter * real_simulation_times *
+                     RAVE_simulation_times);
 
   return (1 - beta) * real_UCT + beta * RAVE_UCT;
 }
@@ -726,8 +724,8 @@ std::pair<double, int> MyAI::Simulate(ChessBoard chessboard, int color) {
 
   int cnt = 1;
   for (int rev_depth = simulate_depth - 1; rev_depth >= 0; rev_depth--) {
-    play[moves[simulate_depth] / 100][moves[simulate_depth] % 100]
-        [chess[simulate_depth] / 100][chess[simulate_depth] % 100] = true;
+    play[moves[rev_depth] / 100][moves[rev_depth] % 100]
+        [chess[rev_depth] / 100][chess[rev_depth] % 100] = true;
     for (int i = 0; i < moveNum[rev_depth]; i++) {
       int mov = RAVE_moves[rev_depth][i];
       if (mov == moves[rev_depth]) continue;
